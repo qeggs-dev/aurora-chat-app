@@ -64,6 +64,8 @@ chat-demo-shell/
 | IndexedDB | `dslike-style`（packs）、`dslike-presets`（presets）、`dslike-memory`（snapshots）、`dslike-usage`（events+stats）、聊天历史库 | 各自业务数据 |
 | 磁盘 | `desktop/` 打包、`out/` 产物、Android assets | 构建物 |
 
+内置极光样式包随安装包分发：`tools/style-fixture/aurora.zip` 由 `scripts/build-web.ps1` 复制到 `web/src/assets/builtin/aurora.zip`，rspack `.zip → asset/resource` 输出到 `dist/static/media/`。`initStylePacks()` 启动时先 `ensureBuiltinPack()`（fetch 资产 → File → `parseStylePackZip` → IndexedDB，记录 `builtin: true` + `builtinVersion`）再恢复 active：全新库写入并启用内置包，已有用户包不抢占 active，内置资产版本更新时覆盖内置记录，用户自己导入的同 id 包（builtin=false）不被覆盖；资产缺失/解析失败只 warn 一次并回退应用默认外观（唯一降级路径）。
+
 ## 5. 关键调用链
 
 ```
@@ -75,7 +77,7 @@ UI → chat/store.streamReply
    →（可选）工具循环：runMemoryTool → tool_result → 续写（≤3 轮）
    → usage.recordUsage（回复落定）
 
-样式包：设置→样式→导入 zip → parse → IndexedDB → activateStylePack → applyStyleVars（CSS 变量 + FontFace + palette）
+样式包：启动 → ensureBuiltinPack（fetch 内置 aurora.zip）→ IndexedDB → 恢复 active；设置→样式→导入 zip → parse → IndexedDB → activateStylePack → applyStyleVars（CSS 变量 + FontFace + palette）。删除非内置包 / 「恢复默认（极光）」都切回内置包，`activateStylePack(null)` 仅作内置包不可用时的内部兜底。
 ```
 
 ## 6. 构建与验证
@@ -133,5 +135,5 @@ pwsh -File scripts\build-mobile.ps1    # 需要 JAVA_HOME=D:\Apps\jdk-21.0.8
 ## 9. 当前状态（2026-11-18）
 
 - 已发布 0.3.0（桌面 zip + APK），0.3.1 正在收尾：用量日志/统计拆分与导出、图片 effects/tilt/window/zoom、默认预设与元信息；
-- Cordis 内部容器 Phase 1 已完成（见 §8，`cordis-refactor`）；待做：内置演示样式包 + 详情页导出、内置默认预设、第三方插件运行时（`plugin-runtime`）；
+- Cordis 内部容器 Phase 1 已完成（见 §8，`cordis-refactor`）；内置极光样式包已随安装包内置并设为默认（首启自动安装启用、不可删除、恢复默认回到它）；待做：详情页导出、内置默认预设、第三方插件运行时（`plugin-runtime`）；
 - 设计文档：`docs/plugins.md`。

@@ -951,8 +951,8 @@ const manifest = {
   id: 'aurora',
   name: '极光',
   description: '冷色调示例包：抽象极光背景与几何图标，带视觉特效、裁切缩放与卡片偏转示例。',
-  author: 'chat-demo-shell contributors',
-  version: '1.2.1',
+  author: 'Aurora Chat contributors',
+  version: '1.2.2',
   sidebarTitle: 'Aurora Chat',
   // 包图标 / 详情页封面按主题提供；旧的 `{ "file": "…" }` 形式仍是主题无关的兜底
   icon: {

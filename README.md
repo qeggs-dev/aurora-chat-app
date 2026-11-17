@@ -168,6 +168,7 @@ assets/dark/...     # 深色资源
 - `assets` 的键是资源 ID；路径只从索引取，不支持硬编码文件名。
 - `alpha`（0–1，默认 1）与 `exposure`（-1–1，默认 0）只对图片有意义，分别映射为图层透明度和亮度。
 - `fit`（默认 `cover`）/ `align`（默认 `center`）/ `render`（默认 `auto`）控制背景与图标的缩放、排版与插值，`position` 配合 `align: "custom"` 使用，见「图片缩放与排版」。
+- `effects`（可选）控制视觉特效与裁切缩放：图标与封面支持静态效果与 `tilt`，包图标支持静态效果（`tilt` 报 `badConfig`），背景只支持 `window` / `zoom`，详见「视觉特效（effects）」。
 - `color_palette`（可选）按浅色/深色覆盖界面配色，见下文「配色」。
 - `cover`（可选）是详情页封面：`png` / `jpg` / `jpeg` / `webp` / `svg`，≤ 5 MB；路径规则与 `icon` / `license` 一致（只允许包内相对路径，拒绝绝对路径与 `..`）。详情页背景**只使用该文件的 blob URL**（写成 `url("…")`），没有 `cover` 时详情页不铺背景图，其它资源不受影响。大小超限报 `badConfig`，扩展名不符报 `badFileType`，文件缺失或路径非法按 `missingFile` 拒绝。
 - 缺失的资源 ID 一律回退到应用默认样式（不跨主题借用）。
@@ -248,6 +249,105 @@ assets/dark/...     # 深色资源
 }
 ```
 
+### 视觉特效（effects）
+
+`assets` 里的图片项可以再带可选的 `effects`；`icon` / `cover` 这两个顶层图片引用也可以在 `{ "file": …, "effects": { … } }` 里写 `effects`。所有效果都在导入时严格校验，非法值让导入失败（`badConfig`，错误信息带字段名），未知键忽略并提示。
+
+**允许矩阵**
+
+| 资源 | `window` / `zoom` | 静态效果（opacity / shadow / outerGlow / innerGlow / emboss / stroke） | `tilt` |
+| --- | --- | --- | --- |
+| `icon.*` 资源 | ✅ | ✅ | ✅ |
+| 包图标 `icon.png` | ✅ | ✅ | ❌（`badConfig`） |
+| 封面 `cover.png` | ✅ | ✅ | ✅ |
+| 背景 `background.*` | ✅ | ❌ 忽略并 warn | ❌ 忽略并 warn |
+| 字体 / 许可文本 | ❌ 忽略并 warn | ❌ 忽略并 warn | ❌ 忽略并 warn |
+
+**静态效果**
+
+| 字段 | 子字段与取值范围 | 默认（子字段缺省时） | 实现 |
+| --- | --- | --- | --- |
+| `opacity` | 0–1 | `1` | CSS `opacity` |
+| `shadow` | `x` / `y` −100..100、`blur` 0..100、`color` 严格 CSS 颜色 | `{ x: 0, y: 4, blur: 12, color: "#00000066" }` | CSS `filter: drop-shadow(x y blur color)`，天然按 alpha 生效 |
+| `outerGlow` | `radius` 0..50、`color`、`intensity` 0..1 | `{ radius: 10, color: "#ffffff", intensity: 1 }` | alpha 模糊后染色的派生图底层 |
+| `innerGlow` | `radius` 0..50、`color`、`intensity` 0..1 | `{ radius: 6, color: "#ffffff", intensity: 1 }` | 反相 alpha 模糊 × 原 alpha，叠在字形内部 |
+| `emboss` | `depth` 0..10、`angle` 0..360、`intensity` 0..1 | `{ depth: 1.5, angle: 45, intensity: 0.6 }` | alpha 沿光照方向偏移求梯度，亮/暗叠在内部 |
+| `stroke` | `width` 0..20、`color` | `{ width: 2, color: "#000000" }` | 二值 alpha 距离变换膨胀，染描边色作为底层 |
+
+- 颜色沿用配色表的严格校验：`#rgb` / `#rgba` / `#rrggbb` / `#rrggbbaa` / `rgb()` / `rgba()` / `hsl()` / `hsla()` / `transparent`，其余写法（含 CSS 变量、颜色名）一律 `badConfig`。
+- **依赖 alpha 通道**：`stroke` / `outerGlow` / `innerGlow` / `emboss` 需要 canvas 处理原图 alpha 并合成派生 PNG；`opacity` / `shadow` 纯 CSS，不产生派生图。
+- 长度（`radius` / `width` / `depth` / `blur`）以资源原图像素为坐标系；原图被缩放（最大边长 1024）时按比例换算。
+
+**裁切窗口（window）与缩放（zoom）**
+
+| 字段 | 取值 | 默认 | 作用 |
+| --- | --- | --- | --- |
+| `window` | `{ x1, y1, x2, y2 }`，四个 0–1 有限数，且 `x1 < x2`、`y1 < y2` | 整张图 | 归一化坐标（相对原图宽高）的可见区域，先从原图裁出该区域 |
+| `zoom` | 0–4 有限数，允许小数 | `1` | `1` 不缩放；`0` 不显示（派生 1×1 透明图）；其它值以裁切区域中心为基准缩放 |
+
+- 两者都走 canvas 派生图：先按 `window` 裁出区域，再以裁切区域中心按 `zoom` 缩放；输出画布保持裁切区域尺寸（`zoom < 1` 四周留透明，`zoom > 1` 放大后超出部分被裁掉），因此 `<img>` 的尺寸规则与 `object-fit: contain` / 背景的 `background-size` / `cover` 等行为都不变。
+- `window` 缺省某个字段、或 `window` 出现但缺字段、`x1 >= x2`、`y1 >= y2` 都报 `badConfig`（带字段名）。
+- 背景资源上的 `window` / `zoom` 有意义、会生效；背景上的静态效果与 `tilt` 在导入时被忽略（每个资源 warn 一次）。
+
+**卡片偏转（tilt）**
+
+```json
+"dslike_chat.style_pkg.icon.send.light": {
+  "file": "assets/icons/light/send.png",
+  "effects": {
+    "shadow": { "x": 0, "y": 4, "blur": 12, "color": "#00000066" },
+    "tilt": { "maxAngle": 12, "perspective": 700, "scale": 1.02 }
+  }
+}
+```
+
+| 字段 | 取值范围 | 默认（子字段缺省时） |
+| --- | --- | --- |
+| `tilt.maxAngle` | 0–30 度 | `12` |
+| `tilt.perspective` | 200–2000 px | `700` |
+| `tilt.scale` | 0.8–1.2 | `1.02` |
+
+- `tilt` 只允许出现在 `icon.*` 资源与 `cover` 上：图标在其 `<img>` 外包一层透视容器，封面在详情页 hero 的封面层上做偏转；其它位置出现 `tilt` 报 `badConfig`。
+- 行为：`pointermove` 按光标在元素内的相对位置计算 `rotateX` / `rotateY`（限幅到 `maxAngle`），`pointerleave` / `pointercancel` 平滑回正；`transform-style: preserve-3d`；`prefers-reduced-motion: reduce` 时禁用；触屏（`pointerType !== "mouse"`）不启用。只挂指针事件，不拦截点击与键盘操作。
+- 只支持偏转的容器是「卡片 / 图标 / 封面」这类小元素；背景资源不能偏转。
+
+示例（图标：外发光 + 描边 + 阴影 + 裁切缩放 + 偏转；封面：静态效果 + 偏转）：
+
+```json
+"assets": {
+  "dslike_chat.style_pkg.icon.send.light": {
+    "file": "assets/icons/light/send.png",
+    "render": "pixelated",
+    "effects": {
+      "opacity": 0.95,
+      "shadow": { "x": 0, "y": 4, "blur": 12, "color": "#00000066" },
+      "outerGlow": { "radius": 10, "color": "#7fd4ff", "intensity": 0.8 },
+      "innerGlow": { "radius": 6, "color": "#ffffff66", "intensity": 0.6 },
+      "emboss": { "depth": 1.5, "angle": 45, "intensity": 0.6 },
+      "stroke": { "width": 2, "color": "#0b1020" },
+      "window": { "x1": 0.1, "y1": 0.2, "x2": 0.9, "y2": 0.8 },
+      "zoom": 1.25,
+      "tilt": { "maxAngle": 12, "perspective": 700, "scale": 1.02 }
+    }
+  }
+},
+"cover": {
+  "file": "cover.png",
+  "effects": {
+    "outerGlow": { "radius": 12, "color": "#7fd4ff", "intensity": 0.7 },
+    "tilt": { "maxAngle": 10, "perspective": 900, "scale": 1.01 }
+  }
+}
+```
+
+**性能与边界**
+
+- 派生图只算一次：缓存键 = 资源 ID + `effects` 的稳定 JSON 指纹；切换 / 停用样式包、刷新列表时，store 按「当前仍在引用的原图 URL」回收不再需要的派生 blob URL（`URL.revokeObjectURL`）。
+- 处理是异步的：包图片加载 / 特效处理期间先用原图占位；同一时刻最多并发 4 个派生任务，其余排队。
+- 处理失败（解码失败、canvas 不可用等）回退原图并 `warn`，每个资源只提示一次，不影响导入与其它资源。
+- 派生画布最长边 1024 px，超过的原图先等比缩小，防止大图长时间占用主线程。
+- `zoom: 0` 直接派生 1×1 透明图，等价于该资源不显示。
+
 ### 配色（color_palette）
 
 `index.json` 可以带可选的 `color_palette`，按当前主题（浅色 / 深色）覆盖界面语义色。配色只改变颜色变量，背景图、字体、图标仍走 `assets`；不写 `color_palette` 或其中某个令牌时，该令牌保持应用默认色。
@@ -316,7 +416,7 @@ assets/dark/...     # 深色资源
 - 字体：`ttf` `otf` `woff` `woff2`
 - 文本（许可证）：`txt` `md` `license`
 - 单个 zip ≤ 20 MB，解压后 ≤ 60 MB，条目 ≤ 300；拒绝绝对路径与 `..`
-- 配套示例包（`aurora`）只含抽象背景与几何图标（渐变、极光带、光环、星点），**不含任何官方标志**。
+- 配套示例包（`aurora`）只含抽象背景与几何图标（渐变、极光带、光环、星点），**不含任何官方标志**；其中给了 2–3 个图标静态特效、1 个图标 `window` + `zoom` + `tilt`，封面也带静态效果与 `tilt`，可作为视觉特效的参照。
 
 ### 安全边界
 
@@ -327,10 +427,11 @@ assets/dark/...     # 深色资源
   - `fit` / `align` / `render` 只接受上表枚举，非法值报 `badConfig`，错误信息带字段名；
   - `position` 只允许 `^[A-Za-z0-9 %.,/+()-]{1,60}$`，并额外拒绝 `url(` / `expression(` / `/*`；
   - `color_palette` 只接受 `#hex` / `rgb()` / `rgba()` / `hsl()` / `hsla()` / `transparent`，且分量有界；
+  - `effects` 只接受文档列出的已知键：`opacity` / `shadow` / `outerGlow` / `innerGlow` / `emboss` / `stroke` 的数值与颜色逐项校验，`window` 四个归一化坐标必须在 0–1 且 `x1 < x2`、`y1 < y2`，`zoom` 在 0–4，`tilt` 的 `maxAngle` / `perspective` / `scale` 有界且只允许出现在 `icon.*` 与 `cover`；未知键忽略并提示，数值/颜色不合规报 `badConfig`（带字段名）；
   - `cover` 与 `icon` / `license` 一样只从索引取路径：只接受 `png` / `jpg` / `jpeg` / `webp` / `svg` 且 ≤ 5 MB（超限 `badConfig`、类型不符 `badFileType`），绝对路径与 `..` 在导入时被拒；
   - `sidebarTitle` / `description` / `author` / `version` / 许可证文本拒绝控制字符与 `<` / `>`（展示层仍用 React 文本，不做 HTML 解析）；`sidebarTitle` 不合格为致命错误（`badConfig`），其余非关键字段忽略并提示；
   - `align: "custom"` 必须同时给出 `position`；`position` 在非 `custom` 时会被忽略（导入时提示一次）。
-- **只用 blob URL**：`index.json` 里的路径只在 zip 内查文件；真正写进 CSS / `<img>` / `FontFace` / 详情页 `background-image` 的地址一律是 `URL.createObjectURL()` 生成的 `blob:` URL，并统一写成 `url("…")`（引号 + 反斜杠转义）。包内路径不会变成资源地址。
+- **只用 blob URL**：`index.json` 里的路径只在 zip 内查文件；真正写进 CSS / `<img>` / `FontFace` / 详情页 `background-image` 的地址一律是 `URL.createObjectURL()` 生成的 `blob:` URL，并统一写成 `url("…")`（引号 + 反斜杠转义）。包内路径不会变成资源地址。视觉特效的派生图同样只在内存里用 canvas 生成 PNG Blob，再转成 `blob:` URL（canvas 同源、不加载远程资源，处理完即 revoke）。
 - **字体家族名固定**：字体统一注册为 `DSLikePackFont`（不来自清单），`FontFace` 的 family 是常量、source 只有 blob URL。
 - **CSP**（`index.html` 的 `Content-Security-Policy` 元标签）：
   - `img-src 'self' blob: data: https:`（`https:` 只用于搜索结果的站点图标）

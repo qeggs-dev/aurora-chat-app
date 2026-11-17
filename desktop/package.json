@@ -1,8 +1,8 @@
 {
   "name": "dslike-chat-desktop",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
-  "description": "DSLike Chat 的 Electron 桌面壳（基于 chat-demo 的非官方封装）",
+  "description": "DSLike Chat 的 Electron 桌面壳（基于 chat-demo 的社区客户端）",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

@@ -1,4 +1,4 @@
-# DSLike Chat（chat-demo 的非官方桌面/移动壳）
+# DSLike Chat（基于 chat-demo 的社区客户端）
 
 给上游开源项目 [`deepseek-ai/chat-demo`](https://github.com/deepseek-ai/chat-demo) v0.1.1 加的两层壳：
 
@@ -19,11 +19,13 @@
 
 ```powershell
 pwsh -File scripts\build-web.ps1       # 1. 构建 web 产物并分发
-pwsh -File scripts\build-desktop.ps1   # 2. 桌面：out\desktop\win-unpacked + out\chat-demo-desktop-0.1.1-win-x64.zip
-pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\chat-demo-debug.apk
+pwsh -File scripts\build-desktop.ps1   # 2. 桌面：out\desktop\win-unpacked + out\dslike-chat-desktop-<version>-win-x64.zip
+pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\dslike-chat-debug.apk
 ```
 
 环境要求：Node 22+ / pnpm、JDK 17+、Android SDK（platform 36 + build-tools 36.1.0）；首次 Gradle 构建会下载 wrapper 与 AGP 依赖。
+
+当前版本 **0.3.0**（Android `versionCode 6`）。`scripts/` 里的脚本会依次完成 web 构建、资源分发与打包，桌面 zip 与 APK 都在 `out/` 下。
 
 ## 已知限制
 
@@ -32,6 +34,9 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\chat-demo-debug.
 - **移动端导出历史 ZIP 不落盘**：WebView 不支持 `a[download]` 的 blob 下载，需要接 `@capacitor/filesystem` 或改用系统分享。
 - **移动端语音**：Manifest 已声明 `RECORD_AUDIO` / `MODIFY_AUDIO_SETTINGS`，Capacitor 的 `BridgeWebChromeClient` 会在首次录音时申请运行时权限。
 - **签名**：未配置代码签名与 Android release keystore；`assembleRelease` 需要自行补签名配置。
+- **附件跨协议**：文件附件只在「DeepSeek 的 Anthropic 兼容端点」上可用（依赖其 Files API）；切到 OpenAI Chat / Responses 预设时附件会被跳过（仅提示，不阻塞发送）。
+- **记忆与压缩是本机数据**：记忆存在各设备自己的 IndexedDB（sql.js 快照），不跨设备同步；压缩摘要随会话保存在本地。
+- **压缩没有 UI 标记**：自动压缩不会在聊天流里显示「已压缩 N 条」，原文仍保留在本地会话中可回看。
 
 ## 图标与启动屏
 
@@ -45,15 +50,7 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\chat-demo-debug.
 - 上游界面与 `web/`：MIT，版权归 `deepseek-ai/chat-demo` 作者，声明文件是 `web/LICENSE`（构建时随 `dist/LICENSE` 打进 asar / APK assets）。
 - 本壳层代码：MIT，见根目录 `LICENSE`。
 - Electron / Chromium / Capacitor / 前端依赖的第三方声明见 `NOTICE.md`；分发时务必保留 `LICENSES.chromium.html` 与 `LICENSE.electron.txt`。
-- 本项目是**非官方封装**，包标识使用中性 `com.chatdemo.shell`，未获 DeepSeek 背书。
-
-## 名称与声明
-
-- 对外名称：**DSLike Chat**（`appName`、页面标题、窗口标题、Android 桌面名、桌面 exe 名）。
-- 包标识：`com.dslike.chat`（中性命名，不使用 `deepseek` 作为组织名，避免暗示官方关系）。
-- 首次使用：启动后先弹「使用前请确认」，必须点「我已知悉，继续使用」才会继续；确认结果存在 `localStorage` 的 `chat-demo:disclaimer-accepted`，之后不再弹出。
-- 声明入口：`设置 → 关于` 随时可看非官方声明、上游仓库链接、上游 MIT 许可全文、图标与第三方组件说明。
-- 换名称/换 URL：`web/src/i18n/{zh,en}.ts`（文案）、`web/src/components/settings/DisclaimerGate.tsx`（弹窗）、`desktop/electron-builder.yml` 与 `mobile/capacitor.config.json`（包名/产品名）。
+- 本项目是**社区客户端**（基于 chat-demo 修改与扩展），属于非官方项目，未获 DeepSeek 背书；包标识使用中性的 `com.dslike.chat`。
 
 ## 构建与验证记录（2026-11-17）
 
@@ -74,6 +71,61 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\chat-demo-debug.
 
 
 
+
+## API 预设（Preset）
+
+设置 → 预设 管理 API 配置。每个预设对应一份 `api_configs.json`，可以 `.zip` 导入，也可以直接在页面里编辑：
+
+- **预设标签栏**：每个预设一个标签；`＋ 新建` 创建后立即切到该标签；标签上显示「已启用」徽标与未保存圆点。
+- **分栏编辑**：`API 设置`（协议 / base_url / model）、`模型参数`（temperature / top_p / max_tokens / stop / penalties / seed / reasoning_effort）、`提示词`（system prompt，留空用应用自带）、`记忆`（开关、检索条数与只读记忆列表）、`上下文压缩`（开关 / 触发阈值 / 保留条数 / 摘要提示词）。
+- **三种协议**：`anthropic`（Messages，含 DeepSeek 兼容扩展）、`openai`（Chat Completions）、`responses`（OpenAI Responses）；请求由适配层统一编译，流式事件归一化后进入现有会话模型。
+- **运行时元信息**：每次请求在 system 提示词后追加一段动态环境（`platform` 由 `Capacitor.getPlatform()` / Electron UA 计算，另含版本、语言、主题与时间）。
+- **API Key 不写入预设**：Key 仍在「数据管理」里全局配置。
+
+```json
+{
+  "schema": 1,
+  "id": "deepseek-openai",
+  "name": "DeepSeek（OpenAI 兼容）",
+  "protocol": "openai",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-chat",
+  "params": { "temperature": 0.7, "top_p": 0.95, "max_tokens": 4096 },
+  "system_prompt": "可选；留空用应用自带提示词",
+  "compaction": { "enabled": true, "trigger_tokens": 32000, "keep_recent_messages": 8 },
+  "memory": { "enabled": false, "max_results": 8 }
+}
+```
+
+zip 内可附 `icon.png`、`LICENSE` 与 `system_prompt_file` 指向的提示词文件；压缩包 ≤5 MB、解压 ≤10 MB、条目 ≤100。
+
+## 用量统计
+
+设置 → 用量统计：
+
+- 每次请求结束记录一条用量：协议、模型、输入（未命中缓存）、缓存命中输入、输出、推理 token、搜索次数、耗时；
+- 面板显示总 Token、缓存命中率、平均生成速率、推理/搜索/安全审查用量与最近请求列表，可一键清空；
+- 当前预设指向 `api.deepseek.com` 时，顶部显示账户余额（`GET /user/balance`，可刷新）。
+
+## 记忆（SQLite）
+
+预设里开启「记忆」后，模型会拿到两个**固定参数**的工具（不能执行任意 SQL）：
+
+- `memory_write`：写入一条自包含事实（`content` + 可选 `tags` / `section`，内容 ≤2KB、标签 ≤4 个）；
+- `memory_search`：按关键词 / 标签 / 分区检索（`limit` 1–20）。
+
+存储用 `sql.js`（WASM）内存 SQLite，表结构对齐工作区记忆库子集：`sections` / `entries` / `entry_tags`，软删除（`status='archived'`）。快照防抖写入 IndexedDB（`dslike-memory`），启动先 `PRAGMA quick_check`，坏库回退上一份快照。工具调用执行后把结果作为 `tool_result` 回灌给模型继续生成，最多 3 轮。
+
+> DeepSeek 的 Anthropic 兼容端点有硬性约束：客户端工具与 `title` / `safety_check` / 服务端工具同时出现时，请求必须处于 thinking 模式。应用会在带记忆工具的 DeepSeek 兼容请求里自动启用 thinking，其余协议不受影响。
+
+## 上下文压缩
+
+开启后按 `chars/4` 估算 token，达到 `trigger_tokens` 且消息条数超过 `keep_recent_messages` 时：
+
+1. 保留最近 N 条（切口回退到 user 消息，不拆一问一答）；
+2. 把更早的消息交给当前模型生成摘要（默认 8 段模板，可用预设 `prompt` 覆盖）；
+3. 摘要以一条 `<compacted-summary>` 的 user 消息放在历史最前，被覆盖消息不再发送但保留在本地；
+4. 再次触发时合并旧摘要，始终只有一条摘要；失败只 warn，不阻塞本轮回复。
 
 ## 自定义样式包
 
@@ -111,6 +163,7 @@ assets/dark/...     # 深色资源
 - `schema` 恒为 `1`；`id` 为 1–64 位 `[a-z0-9._-]`，**同 id 覆盖**已有包。
 - `assets` 的键是资源 ID；路径只从索引取，不支持硬编码文件名。
 - `alpha`（0–1，默认 1）与 `exposure`（-1–1，默认 0）只对图片有意义，分别映射为图层透明度和亮度。
+- `fit`（默认 `cover`）/ `align`（默认 `center`）/ `render`（默认 `auto`）控制背景与图标的缩放、排版与插值，`position` 配合 `align: "custom"` 使用，见「图片缩放与排版」。
 - `color_palette`（可选）按浅色/深色覆盖界面配色，见下文「配色」。
 - 缺失的资源 ID 一律回退到应用默认样式（不跨主题借用）。
 
@@ -123,6 +176,71 @@ assets/dark/...     # 深色资源
 | 背景 | `background.main.{theme}`、`background.chat.{theme}`、`background.input_box.{theme}`、`background.sidebar.{theme}`、`background.new_session.{theme}`、`background.selected_session.{theme}`、`background.normal_session.{theme}`、`background.setting.generic.{theme}`、`background.setting.datas.{theme}`、`background.setting.about.{theme}` |
 | 字体 | `font.{theme}` |
 | 图标 | `icon.new_session.{theme}`、`icon.enter_sidebar.{theme}`、`icon.exit_sidebar.{theme}`、`icon.thinking.{theme}`、`icon.network.{theme}`、`icon.sound_input.{theme}`、`icon.link_file.{theme}`、`icon.edit.{theme}`、`icon.menu.{theme}`、`icon.delete.{theme}`、`icon.copy.{theme}`、`icon.regen.{theme}`、`icon.send.{theme}`、`icon.stop.{theme}`、`icon.left_arrow.{theme}`、`icon.right_arrow.{theme}`、`icon.setting.setting.{theme}`、`icon.setting.light.{theme}`、`icon.setting.dark.{theme}`、`icon.setting.device.{theme}`、`icon.setting.datas.{theme}`、`icon.setting.about.{theme}` |
+
+### 图片缩放与排版（fit / align / position / render）
+
+`assets` 里的图片项可再带三个排版字段与一个位置字段；缺省值保持扩展前的表现（`cover` / `center` / `auto`），只写 `file` / `alpha` / `exposure` 的旧包行为完全不变。
+
+| 字段 | 取值 | 默认 | 作用 |
+| --- | --- | --- | --- |
+| `fit` | `cover` / `contain` / `stretch` / `tile` | `cover` | 背景图如何适配容器 |
+| `align` | 九宫格 + `custom` | `center` | 背景图在容器中的对齐方式 |
+| `position` | 任意安全 CSS `background-position`，≤60 字符 | — | 仅 `align: "custom"` 时生效；其它情况忽略并在导入时提示 |
+| `render` | 插值算法 | `auto` | 缩放采样方式，映射到 CSS `image-rendering` |
+
+`fit` 的取值与 CSS 映射：
+
+| fit | background-size | background-repeat |
+| --- | --- | --- |
+| `cover` | `cover` | `no-repeat` |
+| `contain` | `contain` | `no-repeat` |
+| `stretch` | `100% 100%` | `no-repeat` |
+| `tile` | `auto` | `repeat` |
+
+`align` 的九宫格（`custom` 时改用 `position`）：
+
+| align | 映射到 background-position |
+| --- | --- |
+| `top-left` / `top-center` / `top-right` | `left top` / `center top` / `right top` |
+| `center-left` / `center` / `center-right` | `left center` / `center` / `right center` |
+| `bottom-left` / `bottom-center` / `bottom-right` | `left bottom` / `center bottom` / `right bottom` |
+| `custom` | 使用 `position` 字段（如 `50% 20%`、`left 10px bottom 20%`） |
+
+`render` 的 7 个取值：
+
+| render | 含义 | CSS image-rendering |
+| --- | --- | --- |
+| `auto` | 浏览器/平台默认（双线性等平滑插值） | `auto` |
+| `smooth` | 显式要求平滑插值（Chromium 无独立关键字） | `auto` |
+| `pixelated` | 不插值，最近邻采样（像素画必用） | `pixelated` |
+| `crisp-edges` | 不模糊边缘（Firefox 语义；Chromium 按最近邻处理） | `crisp-edges` |
+| `high-quality` | 高质量缩放（新内核支持） | `high-quality` |
+| `optimize-speed` | 速度优先 | `optimizeSpeed` |
+| `optimize-quality` | 质量优先 | `optimizeQuality` |
+
+- 不支持的关键字由 CSS 无效值回退机制落到 `auto`，不做 JS 特性检测。
+- 像素画推荐配置：`{ "fit": "contain", "align": "center", "render": "pixelated" }`。
+- 图标资源（`icon.*`）只应用 `render`（`<img>` 的 `image-rendering`）；`fit` / `align` / `position` 对图标无意义，出现时忽略并在导入时提示。字体与文本资源不应用任何图片选项，出现时同样忽略并提示。
+- `position` 只允许 `[A-Za-z0-9 %.,/+()-]` 且 ≤60 字符，并拒绝 `url(` / `expression(` / CSS 注释；其余取值在导入时报 `badConfig`。
+
+示例（浅色聊天背景 + 像素图标）：
+
+```json
+"assets": {
+  "dslike_chat.style_pkg.background.chat.light": {
+    "file": "assets/light/chat.png",
+    "alpha": 1,
+    "exposure": 0.1,
+    "fit": "contain",
+    "align": "center",
+    "render": "pixelated"
+  },
+  "dslike_chat.style_pkg.icon.send.light": {
+    "file": "assets/icons/light/send.png",
+    "render": "pixelated"
+  }
+}
+```
 
 ### 配色（color_palette）
 
@@ -192,3 +310,25 @@ assets/dark/...     # 深色资源
 - 字体：`ttf` `otf` `woff` `woff2`
 - 文本（许可证）：`txt` `md` `license`
 - 单个 zip ≤ 20 MB，解压后 ≤ 60 MB，条目 ≤ 300；拒绝绝对路径与 `..`
+
+### 安全边界
+
+样式包是用户从外部下载的 zip，按不可信输入处理：
+
+- **只走 CSSOM**：资源与排版变量通过 `element.style.setProperty()` 写入 CSS 变量，不拼 `cssText`、不写 `<style>` 文本、不把清单字符串拼进 React `style` 字符串。
+- **白名单校验**（导入时在 `zip.ts` 完成，应用层只消费净化后的值）：
+  - `fit` / `align` / `render` 只接受上表枚举，非法值报 `badConfig`，错误信息带字段名；
+  - `position` 只允许 `^[A-Za-z0-9 %.,/+()-]{1,60}$`，并额外拒绝 `url(` / `expression(` / `/*`；
+  - `color_palette` 只接受 `#hex` / `rgb()` / `rgba()` / `hsl()` / `hsla()` / `transparent`，且分量有界；
+  - `sidebarTitle` / `description` / `author` / `version` / 许可证文本拒绝控制字符与 `<` / `>`（展示层仍用 React 文本，不做 HTML 解析）；`sidebarTitle` 不合格为致命错误（`badConfig`），其余非关键字段忽略并提示；
+  - `align: "custom"` 必须同时给出 `position`；`position` 在非 `custom` 时会被忽略（导入时提示一次）。
+- **只用 blob URL**：`index.json` 里的路径只在 zip 内查文件；真正写进 CSS / `<img>` / `FontFace` 的地址一律是 `URL.createObjectURL()` 生成的 `blob:` URL，并统一写成 `url("…")`（引号 + 反斜杠转义）。包内路径不会变成资源地址。
+- **字体家族名固定**：字体统一注册为 `DSLikePackFont`（不来自清单），`FontFace` 的 family 是常量、source 只有 blob URL。
+- **CSP**（`index.html` 的 `Content-Security-Policy` 元标签）：
+  - `img-src 'self' blob: data: https:`（`https:` 只用于搜索结果的站点图标）
+  - `font-src 'self' blob: data:`
+  - `style-src 'self' 'unsafe-inline'`（内联样式变量需要）
+  - `connect-src 'self' https: http: ws: wss:`（自定义 API base_url 与开发服务器 HMR）
+  - `media-src 'self' blob: data:`、`object-src 'none'`、`base-uri 'self'`
+  - 不设 `default-src` / `script-src`，避免破坏 rspack 产物与 sql.js wasm。
+- 因此**包作者不能引用远程资源**：背景 / 图标 / 字体只会加载包内文件（转成 blob URL），`url(https://…)`、`@import`、`expression()` 之类的字符串要么在导入时被拒绝，要么根本不会进入样式或 URL。

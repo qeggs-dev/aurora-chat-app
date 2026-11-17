@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">DSLike Chat</string>
-    <string name="title_activity_main">DSLike Chat</string>
-    <string name="package_name">com.dslike.chat</string>
-    <string name="custom_url_scheme">com.dslike.chat</string>
+    <string name="app_name">Aurora Chat</string>
+    <string name="title_activity_main">Aurora Chat</string>
+    <string name="package_name">com.aurorachat.app</string>
+    <string name="custom_url_scheme">com.aurorachat.app</string>
 </resources>

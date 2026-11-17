@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
 
-Get-Process chat-demo -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process 'Aurora Chat' -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
 
 Push-Location "$root\desktop"
@@ -28,16 +28,17 @@ Copy-Item -Force "$root\LICENSE-UPSTREAM" "$pkg\LICENSE.chat-demo.txt"
 $stablePkg = "$root\out\desktop\win-unpacked"
 $oldDesktop = "$root\out\desktop"
 if (Test-Path $oldDesktop) { Remove-Item -Recurse -Force $oldDesktop -ErrorAction SilentlyContinue }
-New-Item -ItemType Directory -Force -Path "$root\out\desktop" | Out-Null
+New-Item -ItemType Directory -Force -Path $stablePkg | Out-Null
 try {
-  Copy-Item -Recurse -Force $pkg $stablePkg -ErrorAction Stop
+  # 复制内容而不是复制目录本身：旧目录删不掉时也不会套出 win-unpacked\win-unpacked
+  Copy-Item -Recurse -Force "$pkg\*" $stablePkg -ErrorAction Stop
   Write-Output "win-unpacked: $stablePkg"
 } catch {
   Write-Warning "无法刷新 out/desktop/win-unpacked（文件被占用），本次产物在 $pkg"
 }
 
 $version = (Get-Content "$root\desktop\package.json" -Raw | ConvertFrom-Json).version
-$zip = "$root\out\dslike-chat-desktop-$version-win-x64.zip"
+$zip = "$root\out\aurora-chat-desktop-$version-win-x64.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path "$pkg\*" -DestinationPath $zip -CompressionLevel Optimal
 Write-Output "desktop package: $pkg"

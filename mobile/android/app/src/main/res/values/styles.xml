@@ -15,7 +15,9 @@
         <item name="android:background">@null</item>
     </style>
 
-    <!-- Android 12+ 系统启动屏：蓝底 + 官方鲸鱼标记（mipmap 里已替换为官方图标） -->
+    <!-- Android 12+ 系统启动屏：深蓝底 + 居中极光标记。
+         动画图标沿用同名自适应前景资源（mipmap/ic_launcher_foreground，由
+         tools/brand/gen-aurora-icons.mjs 生成，透明底、主体约 62%）。 -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>

@@ -1,8 +1,8 @@
 {
-  "name": "dslike-chat-mobile",
+  "name": "aurora-chat",
   "version": "0.3.2",
   "private": true,
-  "description": "DSLike Chat 的 Android 壳（基于 chat-demo 的社区客户端）",
+  "description": "Aurora Chat 的 Android 壳（基于 chat-demo 的社区客户端）",
   "scripts": {
     "sync": "cap sync android",
     "apk": "cd android && gradlew.bat assembleDebug",

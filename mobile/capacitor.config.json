@@ -1,6 +1,6 @@
 {
-  "appId": "com.dslike.chat",
-  "appName": "DSLike Chat",
+  "appId": "com.aurorachat.app",
+  "appName": "Aurora Chat",
   "webDir": "www",
   "android": {
     "backgroundColor": "#f9fafb",
@@ -8,4 +8,3 @@
     "captureInput": true
   }
 }
-

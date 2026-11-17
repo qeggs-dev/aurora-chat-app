@@ -1,4 +1,4 @@
-package com.dslike.chat;
+package com.aurorachat.app;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -1,4 +1,4 @@
-// 生成 DSLike Chat 样式包示例 / 验证用 zip：
+// 生成 Aurora Chat 样式包示例 / 验证用 zip：
 //   aurora.zip        合法示例包：抽象背景 + 几何图标 + 静态特效 + window/zoom + 图标/封面 tilt
 //   bg-effects.zip    背景带 window/zoom（生效）与 shadow/tilt（导入忽略并 warn）
 //   bad-color.zip     图标 effects.stroke.color 非法 → badConfig

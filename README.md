@@ -1,4 +1,4 @@
-# DSLike Chat（基于 chat-demo 的社区客户端）
+# Aurora Chat（基于 chat-demo 的社区客户端）
 
 给上游开源项目 [`deepseek-ai/chat-demo`](https://github.com/deepseek-ai/chat-demo) v0.1.1 加的两层壳：
 
@@ -9,23 +9,24 @@
 
 ## 名称与声明
 
-- 对外名称：**DSLike Chat**（`appName`、页面标题、窗口标题、Android 桌面名、桌面 exe 名）。
-- 包标识：`com.dslike.chat`（中性命名，不使用 `deepseek` 作为组织名，避免暗示官方关系）。
+- 对外名称：**Aurora Chat**（`appName`、页面标题、窗口标题、Android 桌面名、桌面 exe 名）。
+- 包标识：`com.aurorachat.app`（中性命名，不使用 `deepseek` 作为组织名，避免暗示官方关系）。
 - 首次使用：启动后先弹「使用前请确认」，必须点「我已知悉，继续使用」才会继续；确认结果存在 `localStorage` 的 `chat-demo:disclaimer-accepted`，之后不再弹出。
 - 声明入口：`设置 → 关于` 随时可看非官方声明、上游仓库链接、上游 MIT 许可全文、图标与第三方组件说明。
 - 换名称/换 URL：`web/src/i18n/{zh,en}.ts`（文案）、`web/src/components/settings/DisclaimerGate.tsx`（弹窗）、`desktop/electron-builder.yml` 与 `mobile/capacitor.config.json`（包名/产品名）。
+- 内部代号（用户不可见）：`localStorage` 的 `chat-demo:*` 键、IndexedDB 的 `dslike-*` 库名、CSS 变量 `--dslike-*`、`dslike_chat.style_pkg` 资源前缀等是内部标识，改名不影响已有数据，也不会显示在界面上。
 
 ## 构建
 
 ```powershell
 pwsh -File scripts\build-web.ps1       # 1. 构建 web 产物并分发
-pwsh -File scripts\build-desktop.ps1   # 2. 桌面：out\desktop\win-unpacked + out\dslike-chat-desktop-<version>-win-x64.zip
-pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\dslike-chat-debug.apk
+pwsh -File scripts\build-desktop.ps1   # 2. 桌面：out\desktop\win-unpacked + out\aurora-chat-desktop-<version>-win-x64.zip
+pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\aurora-chat-debug.apk
 ```
 
 环境要求：Node 22+ / pnpm、JDK 17+、Android SDK（platform 36 + build-tools 36.1.0）；首次 Gradle 构建会下载 wrapper 与 AGP 依赖。
 
-当前版本 **0.3.0**（Android `versionCode 6`）。`scripts/` 里的脚本会依次完成 web 构建、资源分发与打包，桌面 zip 与 APK 都在 `out/` 下。
+当前版本 **0.3.2**（Android `versionCode 8`）。`scripts/` 里的脚本会依次完成 web 构建、资源分发与打包，桌面 zip 与 APK 都在 `out/` 下。
 
 ## 已知限制
 
@@ -40,34 +41,35 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\dslike-chat-debu
 
 ## 图标与启动屏
 
-- 标记来源：本项目自绘的 `DS` 标记（`assets/logo/mark.svg`、`mark-foreground.svg`、`logo-lockup.svg`），由矢量重绘得到。
-- 桌面：`desktop/build/icon.png`（1024×1024，由 `assets/logo/mark.svg` 渲染），electron-builder 自动转成 exe 图标。
-- Android：`mipmap-*/ic_launcher*.png` 由 Logo 渲染，自适应图标背景色 `#061029`；启动屏为深蓝底 + 居中 DS 标记，Android 12+ 走 `windowSplashScreenAnimatedIcon`，旧版本回落到 `drawable/**/splash.png`。
-- 重新生成图标：`node .tmp/integrate-logo.mjs`（从 `assets/logo/*.svg` 渲染桌面、Android 与启动屏资源）。
+- 标记来源：本项目自绘的**抽象极光标记**（`assets/brand/aurora-mark.svg`、`aurora-lockup.svg`、`aurora-1024.png` 等）：深蓝底上青蓝到紫的极光弧带，不含任何字母、聊天气泡或官方元素；`assets/logo/` 是旧版 `DS` 标记的存档，不再用于应用图标与启动屏。
+- 桌面：`desktop/build/icon.png`（1024×1024，由 `assets/brand/aurora-mark.svg` 渲染），electron-builder 自动转成 exe 图标。
+- Android：`mipmap-*/ic_launcher*.png` 与 `drawable*/splash.png` 由同一标记渲染，自适应图标背景色 `#061029`；启动屏为深蓝底 + 居中极光标记，Android 12+ 走 `windowSplashScreenAnimatedIcon`，旧版本回落到 `drawable/**/splash.png`。
+- 重新生成图标：`node tools/brand/gen-aurora-icons.mjs`（从 `assets/brand/*` 渲染桌面、Android 与启动屏资源）。
 
 ## 许可
 
 - 上游界面与 `web/`：MIT，版权归 `deepseek-ai/chat-demo` 作者；根目录 `LICENSE-UPSTREAM` 保存上游许可副本，构建时随 `dist/LICENSE` 打进 asar / APK assets，并在桌面包内以 `LICENSE.chat-demo.txt` 分发。
 - 本壳层代码：MIT，见根目录 `LICENSE`。
 - Electron / Chromium / Capacitor / 前端依赖的第三方声明见 `NOTICE.md`；分发时务必保留 `LICENSES.chromium.html` 与 `LICENSE.electron.txt`。
-- 本项目是**社区客户端**（基于 chat-demo 修改与扩展），属于非官方项目，未获 DeepSeek 背书；包标识使用中性的 `com.dslike.chat`。
+- 本项目是**社区客户端**（基于 chat-demo 修改与扩展），属于非官方项目，未获 DeepSeek 背书；包标识使用中性的 `com.aurorachat.app`。
 
-## 构建与验证记录（2026-11-17）
+## 构建与验证记录（2026-11-18，改名 Aurora Chat / `com.aurorachat.app` 后重建）
 
 | 目标 | 结果 |
 | --- | --- |
-| web `rspack build` | 成功，`dist/` 153 个文件 / 4.19 MB |
-| 桌面 Electron 45.3.3 | `out\desktop\win-unpacked\chat-demo.exe` 启动正常；CDP 检查 `location.href = app://bundle/index.html`、标题「API 使用 demo」、localStorage/IndexedDB 可用 |
-| 桌面 zip | `out\chat-demo-desktop-0.1.1-win-x64.zip` 156.7 MB，内含 `LICENSE`、`LICENSE.chat-demo.txt`、`LICENSE.electron.txt`、`LICENSES.chromium.html`、`NOTICE.md` |
-| Android（Capacitor 8.6.2 / AGP 8.13 / Gradle 8.14.3） | `assembleDebug` 成功，APK 5.9 MB，已安装并在 vivo V2270A（Android 15 / SDK 35）上启动，设置弹窗与欢迎页渲染正常 |
-| APK 内容 | `assets/public/` 含整份 web 产物与 `LICENSE` |
+| web `pnpm type` / `pnpm lint` / `rspack build` | 全绿（0 error / 0 warning），`dist/` 产物 |
+| 桌面 Electron 45.3.3 | `out\desktop\win-unpacked\Aurora Chat.exe`（ProductName = Aurora Chat）启动正常；CDP 检查 `location.href = app://bundle/index.html`、窗口与页面标题「Aurora Chat」、首启弹窗 / 侧边栏 / 关于页均为 Aurora Chat，控制台无错误 |
+| 桌面 zip | `out\aurora-chat-desktop-0.3.2-win-x64.zip`（157.2 MB），内含 `Aurora Chat.exe`、`LICENSE`、`LICENSE.chat-demo.txt`、`LICENSE.electron.txt`、`LICENSES.chromium.html`、`NOTICE.md` |
+| 图标 / 启动屏 | `assets/brand/` 的定稿抽象极光标记（`tools/brand/gen-aurora-icons.mjs` 生成）；从重建后的 exe 抽出的 32px 图标与 APK 内 `mipmap-xxxhdpi-v4/ic_launcher.png` 均已是极光标记，不再是旧 DS 标记 |
+| Android（Capacitor 8.6.2 / AGP 8.13 / Gradle 8.14.3） | `assembleDebug` 成功，`out\mobile\aurora-chat-debug.apk` 6.9 MB；`applicationId` / `namespace` = `com.aurorachat.app`、`app_name` = Aurora Chat、`versionName` = 0.3.2；已安装并在 vivo V2270A（Android 15 / SDK 36）上启动，首启声明渲染正常 |
+| APK 内容 | `assets/public/` 含整份 web 产物与 `LICENSE`；`assets/capacitor.config.json` 的 `appId` = `com.aurorachat.app`、`appName` = Aurora Chat |
 
 ### 本机构建时需要绕的坑
 
 1. **Gradle 发行包直连不可达**：`services.gradle.org` / `downloads.gradle.org` 连接超时（Java 与 Node 都连不上）。已改用 `https://mirrors.huaweicloud.com/gradle/gradle-8.14.3-bin.zip` 下载到 `.cache\`，并把 `mobile\android\gradle\wrapper\gradle-wrapper.properties` 的 `distributionUrl` 指到本地 `file:///`。
 2. **JDK 版本**：Capacitor 8 的 `capacitor-android` 用 Java 21 源码，JDK 18 会报「无效的源发行版：21」。构建用 `D:\Apps\jdk-21.0.8`。
 3. **Electron 二进制被 pnpm 拦**：pnpm 11 不读 `package.json` 的 `pnpm.onlyBuiltDependencies`，要在 `pnpm-workspace.yaml` 写 `allowBuilds`（`pnpm approve-builds --all` 也会写这个文件）。
-4. **`ELECTRON_RUN_AS_NODE=1`**：本机环境里设了这个变量时，`chat-demo.exe --remote-debugging-port=…` 会被当成 Node 参数解析并以 exit 9 退出；启动前要清掉。
+4. **`ELECTRON_RUN_AS_NODE=1`**：本机环境里设了这个变量时，`Aurora Chat.exe --remote-debugging-port=…` 会被当成 Node 参数解析并以 exit 9 退出；启动前要清掉。
 
 
 

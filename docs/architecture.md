@@ -1,4 +1,4 @@
-# DSLike Chat 架构速览（给新协作者 / 子代理）
+# Aurora Chat 架构速览（给新协作者 / 子代理）
 
 > 目的：任何人接手前先读这一页，知道项目是什么、代码在哪、数据存哪、怎么构建验证。
 > 当前版本 0.3.x（Electron 桌面壳 + Capacitor Android 壳 + 同一份 React Web 产物）。
@@ -33,7 +33,8 @@ chat-demo-shell/
 │  └─ package.json          # version 决定桌面产物名
 ├─ mobile/                  # Capacitor Android 工程
 │  └─ android/app/build.gradle  # versionCode / versionName
-├─ assets/logo/             # 自绘 Logo（SVG + PNG）
+├─ assets/brand/            # 自绘抽象极光标记（SVG + PNG，tools/brand/gen-aurora-icons.mjs 生成图标/启动屏）
+├─ assets/logo/             # 旧版 DS 标记存档（不再用于应用图标与启动屏）
 ├─ scripts/                 # build-web.ps1 / build-desktop.ps1 / build-mobile.ps1
 ├─ docs/                    # 本文件、plugins.md（插件系统设计）
 ├─ out/                     # 构建产物（桌面 zip / win-unpacked / APK），不入库

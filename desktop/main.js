@@ -70,7 +70,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: '#ffffff',
     autoHideMenuBar: true,
-    title: 'DSLike Chat',
+    title: 'Aurora Chat',
     show: false,
     webPreferences: {
       contextIsolation: true,

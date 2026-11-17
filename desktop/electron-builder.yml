@@ -1,5 +1,5 @@
-appId: com.dslike.chat
-productName: DSLike Chat
+appId: com.aurorachat.app
+productName: Aurora Chat
 copyright: MIT
 directories:
   output: ../out/desktop
@@ -14,6 +14,6 @@ win:
   icon: build/icon.png
   target:
     - target: dir
-  artifactName: chat-demo-${version}-win-x64.${ext}
+  artifactName: aurora-chat-${version}-win-x64.${ext}
 
 

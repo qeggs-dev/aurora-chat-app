@@ -20,7 +20,7 @@
 chat-demo-shell/
 ├─ web/                     # React 前端（唯一源码，产物 dist/ 分发到两个壳）
 │  ├─ src/
-│  │  ├─ app/               # App 入口、viewport、启动初始化（initStylePacks / initPresets / initUsage）
+│  │  ├─ app/               # App 入口、viewport、Cordis 容器（context.ts / AppServices.tsx）与启动初始化
 │  │  ├─ components/        # UI：session / sider / messages / chatInput / settings / base
 │  │  ├─ services/          # 业务与数据层（见下）
 │  │  ├─ i18n/              # zh.ts / en.ts（键必须成对，类型用 satisfies 校验）
@@ -53,6 +53,7 @@ chat-demo-shell/
 | `usage/` | 用量：`events` append-only 日志 + `stats/totals` 累计、导出 JSON/CSV、余额 | `recordUsage`、`clearUsageLog`、`resetUsageStats`、`exportUsage` |
 | `settings.ts` | 全局设置（API Key、主题等） | `useSettings` |
 | `attachments.ts` / `history/` | 附件与本地会话持久化/归档 | — |
+| `plugins/` | 内置服务的 Cordis 插件包装（Phase 1）：settings / api / presets / style / memory / usage；只转发模块公开 API，不改原模块 | 六个 `xxxPlugin` + 服务类型 |
 
 ## 4. 数据存储
 
@@ -103,8 +104,33 @@ pwsh -File scripts\build-mobile.ps1    # 需要 JAVA_HOME=D:\Apps\jdk-21.0.8
 - 第三方测试/验证脚本放 `D:\Projects\Deepseek_Harness_Workspace\.tmp\`，不要污染仓库；
 - 构建产物写 `out/`（不入库），临时 profile 放 `run/`。
 
-## 8. 当前状态（2026-11-18）
+## 8. Cordis 容器（Phase 1）
+
+目标：把 `web/src/services` 的服务装配从「App 里零散调用 init」改成 Cordis 容器，为 `docs/plugins.md` 的第三方插件运行时留出扩展点。Phase 1 **只做内部容器**：不加载外部插件、不做沙箱、不迁移 UI 调用（React 组件继续直接 import 各模块，行为不变）。
+
+- **依赖**：`cordis@4.0.0-rc.13`（锁定精确版本；运行时只 import `cosmokit`，无 Node-only 依赖，web 构建产物不含 `node:` 内置模块）。
+- **创建位置**：`web/src/app/context.ts`
+  - `createAppContext()`：`new Context()` 后按依赖顺序 `ctx.plugin(...)` 注册六个内置服务插件（`web/src/services/plugins/<name>.ts`）。每个插件用 `inject` 声明依赖、`ctx.provide(name, service)` 发布；服务对象是现有模块的转发（导出与内部实现都不变）。
+  - `getAppContext()`：App 模块加载时创建的单例容器。
+  - `start()`：等待所有服务按依赖激活；失败时抛 `AppContextStartError`，逐项给出「哪个服务、加载失败还是缺依赖、缺哪几个服务」，不会静默停在 PENDING。`services()` 返回注入了六个服务的子上下文。
+  - `dispose()`：`pagehide` 时自动调用（也可手动），先释放服务作用域，再按注册逆序 dispose 六个服务。
+- **React 集成**：`web/src/app/AppServices.tsx` 提供 `<AppServicesProvider context={getAppContext()}>`（包在 App 根节点）与 `useAppService('style')`，类型由 `AppServiceMap` 保证；现有组件不需要改。
+
+| 服务 | 插件文件 | inject | 说明 |
+|---|---|---|---|
+| `settings` | `plugins/settings.ts` | — | `useSettings` / `getState` / 各 setter |
+| `api` | `plugins/api.ts` | `settings` | `streamChat` / `verifyApiKey` / `uploadFile` 等 + `getApiKey()` |
+| `presets` | `plugins/presets.ts` | — | preset store 的公开 API（init / activate / import / save / getActiveResolved …） |
+| `style` | `plugins/style.ts` | `settings` | style store 与 `applyStyleVars` 的公开 API |
+| `memory` | `plugins/memory.ts` | — | init / runTool / flush / list / search / write … |
+| `usage` | `plugins/usage.ts` | — | init / record / list / clear / reset … |
+
+- **启动顺序**（App.tsx 的启动 effect）：`await ctx.start()` → `initChat()`（聊天仍直连模块）→ `style.init()` → `presets.init()` → `usage.init()` → `presets` 完成后 `memory.init(预设 memory.enabled)` → 之后预设切换时 `memory.setEnabled(...)`。与 Cordis 化之前的调用顺序一致。
+- **卸载顺序**（`ctx.dispose()`）：`usage` → `memory`（flush 记忆库并清掉落盘防抖定时器）→ `style` → `presets` → `api` → `settings`。style / presets 里仍被界面引用的 objectURL 不在 pagehide 时 revoke。
+- **Phase 2 计划**：UI 与 service 间调用改用 `useAppService` / `ctx.*`（把模块级 import 换成服务注入，并补上 api→presets 这类真实依赖）；按 `docs/plugins.md` 做外部插件运行时（清单、安装确认、Worker RPC、iframe 挂载）；届时服务 dispose 补主题订阅 unbind 与 objectURL 释放策略。
+
+## 9. 当前状态（2026-11-18）
 
 - 已发布 0.3.0（桌面 zip + APK），0.3.1 正在收尾：用量日志/统计拆分与导出、图片 effects/tilt/window/zoom、默认预设与元信息；
-- 待做：内置演示样式包 + 详情页导出、内置默认预设、Cordis 内部架构化（`cordis-refactor`）、第三方插件运行时（`plugin-runtime`）；
+- Cordis 内部容器 Phase 1 已完成（见 §8，`cordis-refactor`）；待做：内置演示样式包 + 详情页导出、内置默认预设、第三方插件运行时（`plugin-runtime`）；
 - 设计文档：`docs/plugins.md`。

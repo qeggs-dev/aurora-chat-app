@@ -74,3 +74,58 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\chat-demo-debug.
 
 
 
+
+## 自定义样式包
+
+设置 → 样式 里可以导入 `.zip` 样式包，替换界面背景、字体、图标与侧边栏标题。导入后存进 IndexedDB，同时只启用一个；删除后立即恢复默认。
+
+### 包结构
+
+```
+index.json
+icon.png            # 包图标（可选，由 index.json 的 icon 指向）
+LICENSE             # 许可证（可选，由 index.json 的 license 指向）
+assets/light/...    # 亮色资源（路径任意，以 index.json 为准）
+assets/dark/...     # 深色资源
+```
+
+### index.json
+
+```json
+{
+  "schema": 1,
+  "id": "aurora",
+  "name": "极光",
+  "description": "冷色调示例包",
+  "author": "you",
+  "version": "1.0.0",
+  "sidebarTitle": "Aurora Chat",
+  "icon": { "file": "icon.png" },
+  "license": { "file": "LICENSE" },
+  "assets": {
+    "dslike_chat.style_pkg.background.main.light": { "file": "assets/light/main.png", "alpha": 1, "exposure": 0 }
+  }
+}
+```
+
+- `schema` 恒为 `1`；`id` 为 1–64 位 `[a-z0-9._-]`，**同 id 覆盖**已有包。
+- `assets` 的键是资源 ID；路径只从索引取，不支持硬编码文件名。
+- `alpha`（0–1，默认 1）与 `exposure`（-1–1，默认 0）只对图片有意义，分别映射为图层透明度和亮度。
+- 缺失的资源 ID 一律回退到应用默认样式（不跨主题借用）。
+
+### 资源 ID
+
+前缀统一为 `dslike_chat.style_pkg`，`{theme}` 取 `light` / `dark`。
+
+| 类别 | ID |
+| --- | --- |
+| 背景 | `background.main.{theme}`、`background.chat.{theme}`、`background.input_box.{theme}`、`background.sidebar.{theme}`、`background.new_session.{theme}`、`background.selected_session.{theme}`、`background.normal_session.{theme}`、`background.setting.generic.{theme}`、`background.setting.datas.{theme}`、`background.setting.about.{theme}` |
+| 字体 | `font.{theme}` |
+| 图标 | `icon.new_session.{theme}`、`icon.enter_sidebar.{theme}`、`icon.exit_sidebar.{theme}`、`icon.thinking.{theme}`、`icon.network.{theme}`、`icon.sound_input.{theme}`、`icon.link_file.{theme}`、`icon.edit.{theme}`、`icon.menu.{theme}`、`icon.delete.{theme}`、`icon.copy.{theme}`、`icon.regen.{theme}`、`icon.send.{theme}`、`icon.stop.{theme}`、`icon.left_arrow.{theme}`、`icon.right_arrow.{theme}`、`icon.setting.setting.{theme}`、`icon.setting.light.{theme}`、`icon.setting.dark.{theme}`、`icon.setting.device.{theme}`、`icon.setting.datas.{theme}`、`icon.setting.about.{theme}` |
+
+### 支持的文件与限制
+
+- 图片：`png` `jpg` `jpeg` `webp` `gif` `svg` `avif`（`<img>` 与 `background-image` 均可用；SVG 不会执行脚本）
+- 字体：`ttf` `otf` `woff` `woff2`
+- 文本（许可证）：`txt` `md` `license`
+- 单个 zip ≤ 20 MB，解压后 ≤ 60 MB，条目 ≤ 300；拒绝绝对路径与 `..`

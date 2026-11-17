@@ -30,5 +30,5 @@ MIT 许可**只授予代码权利，不授予商标、名称或标识的使用�
 
 ## 图标
 
-桌面与 Android 的应用图标、Android 启动图，使用 DeepSeek 官方鲸鱼标记（SVG 路径取自工作区 `dsh_plugins/dsh-opener` 的 `icon.svg` / `MARK_PATH`，viewBox 0 0 23.16 17.04）。
-该标记是 DeepSeek 的品牌资产，商标权归其所有；本项目仅在本地作为界面识别使用，**不代表官方发布或背书**，对外分发前请自行确认商标使用要求。
+桌面与 Android 的应用图标、Android 启动图，使用本项目自绘的 `DS` 标记（`assets/logo/` 下的 SVG，由 `mark.svg` / `mark-foreground.svg` 渲染）。
+该标记为本项目自有图形，不包含 DeepSeek 官方 logo；对外分发时仍应注意不要让名称或图形暗示与 DeepSeek 存在隶属、合作或授权关系。

@@ -35,10 +35,10 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\chat-demo-debug.
 
 ## 图标与启动屏
 
-- 标记来源：DeepSeek 官方鲸鱼标记，SVG 路径取自工作区插件 `dsh_plugins/dsh-opener`（`icon.svg` / `index.js` 的 `MARK_PATH`，viewBox `0 0 23.16 17.04`）。
-- 桌面：`desktop/build/icon.png`（1024×1024，蓝底 `#4D6BFE` + 白鲸），electron-builder 自动转成 exe 图标；已从 exe 抽图标核对。
-- Android：`mipmap-*/ic_launcher*.png` 全部替换，自适应图标背景色改为 `#4D6BFE`；启动屏在 `styles.xml` 里配了 `windowSplashScreenBackground` + `windowSplashScreenAnimatedIcon`，Android 12+ 显示蓝底白鲸（真机已核对），旧版本回落到 `drawable/**/splash.png`。
-- 重新生成图标：`node .tmp/icon-gen/gen.mjs`（resvg 渲染，输出到 `.tmp/icon-gen/out`，再复制进工程）。
+- 标记来源：本项目自绘的 `DS` 标记（`assets/logo/mark.svg`、`mark-foreground.svg`、`logo-lockup.svg`），由矢量重绘得到。
+- 桌面：`desktop/build/icon.png`（1024×1024，由 `assets/logo/mark.svg` 渲染），electron-builder 自动转成 exe 图标。
+- Android：`mipmap-*/ic_launcher*.png` 由 Logo 渲染，自适应图标背景色 `#061029`；启动屏为深蓝底 + 居中 DS 标记，Android 12+ 走 `windowSplashScreenAnimatedIcon`，旧版本回落到 `drawable/**/splash.png`。
+- 重新生成图标：`node .tmp/integrate-logo.mjs`（从 `assets/logo/*.svg` 渲染桌面、Android 与启动屏资源）。
 
 ## 许可
 

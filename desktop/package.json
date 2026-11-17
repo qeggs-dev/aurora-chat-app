@@ -1,0 +1,16 @@
+{
+  "name": "chat-demo-desktop",
+  "version": "0.1.1",
+  "private": true,
+  "description": "chat-demo 的 Electron 桌面壳",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "electron": "45.3.3",
+    "electron-builder": "26.18.0"
+  },
+  "author": "chat-demo-shell contributors"
+}

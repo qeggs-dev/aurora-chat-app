@@ -1,0 +1,19 @@
+appId: com.chatdemo.shell
+productName: chat-demo
+copyright: MIT
+directories:
+  output: ../out/desktop
+  buildResources: build
+files:
+  - main.js
+  - dist/**
+  - package.json
+asar: true
+compression: maximum
+win:
+  icon: build/icon.png
+  target:
+    - target: dir
+  artifactName: chat-demo-${version}-win-x64.${ext}
+
+

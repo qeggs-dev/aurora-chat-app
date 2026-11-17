@@ -1,0 +1,11 @@
+{
+  "appId": "com.chatdemo.shell",
+  "appName": "chat-demo",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#f9fafb",
+    "allowMixedContent": false,
+    "captureInput": true
+  }
+}
+

@@ -1,0 +1,14 @@
+web/
+desktop/node_modules/
+desktop/dist/
+mobile/node_modules/
+mobile/www/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/capacitor-cordova-android-plugins/build/
+mobile/android/local.properties
+out/
+.cache/
+*.log
+.DS_Store

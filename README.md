@@ -97,7 +97,18 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\dslike-chat-debu
 }
 ```
 
-zip 内可附 `icon.png`、`LICENSE` 与 `system_prompt_file` 指向的提示词文件；压缩包 ≤5 MB、解压 ≤10 MB、条目 ≤100。
+zip 内可附图标、许可证与提示词文件；压缩包 ≤5 MB、解压 ≤10 MB、条目 ≤100。三个路径字段**都可省略**：省略时按下面的默认位置查找，找不到就视为未提供（不报错、不阻塞导入）。
+
+| 字段 | 显式写法 | 默认位置（按序尝试） | 说明 |
+| --- | --- | --- | --- |
+| `icon` | `{ "file": "…" }` | `icon.png` → `icon.webp` → `icon.svg` → `icon.jpg` → `icon.jpeg` | 文件名 `icon`，图片直接放 zip 根目录；大小写不敏感 |
+| `license` | `{ "file": "…" }` | `LICENSE` → `LICENSE.txt` → `LICENSE.md` | 全文读入预设，≤200 KB；大小写不敏感 |
+| `system_prompt_file` | 字符串路径 | `system_prompt.md` → `prompt.md` | 只在既没写 `system_prompt_file`、也没写内联 `system_prompt` 时启用；默认文件同样优先于「应用自带提示词」 |
+
+- **显式路径仍然严格**：写了 `icon` / `license` / `system_prompt_file` 但文件不存在，或扩展名 / 大小不合规，照旧报 `missingFile` / `badFileType` / `tooLarge`，不会静默回退默认位置。
+- 默认位置命中的文件同样走原有校验（图标扩展名、许可证 ≤200 KB、提示词文件 ≤64 KB）；不合规时按同样的错误码失败，而不是静默忽略。
+- 解析后 `icon` / `license` / `system_prompt_file` 会补成 zip 内的真实条目名（随预设存进 IndexedDB）；手写 JSON 建的预设没有 zip，因此仍然没有图标 / 许可证文件内容。
+- 显式 `system_prompt_file` 与内联 `system_prompt` 同时存在时，沿用旧规则：文件内容优先。
 
 ## 用量统计
 
@@ -139,10 +150,10 @@ zip 内可附 `icon.png`、`LICENSE` 与 `system_prompt_file` 指向的提示词
 
 ```
 index.json
-icon.png                 # 包图标（可选；或按主题给 assets/light/icon.png、assets/dark/icon.png）
-cover.png                # 详情页封面（可选；或按主题各给一张，作为详情整页背景）
-LICENSE                  # 许可证（可选，由 index.json 的 license 指向）
-assets/light/...         # 亮色资源（路径任意，以 index.json 为准）
+icon.png                 # 包图标（可选；默认位置之一，或按主题给 assets/light/icon.png、assets/dark/icon.png）
+cover.png                # 详情页封面（可选；默认位置之一，或按主题各给一张，作为详情整页背景）
+LICENSE                  # 许可证（可选；默认位置之一，也可用 index.json 的 license 指向别的文件）
+assets/light/...         # 亮色资源（路径任意；也可以只放默认位置文件、完全不写 file）
 assets/dark/...          # 深色资源
 ```
 
@@ -173,13 +184,63 @@ assets/dark/...          # 深色资源
 ```
 
 - `schema` 恒为 `1`；`id` 为 1–64 位 `[a-z0-9._-]`，**同 id 覆盖**已有包。
-- `assets` 的键是资源 ID；路径只从索引取，不支持硬编码文件名。
+- `assets` 的键是资源 ID；路径只从 zip 条目取，不支持远程资源。`file` **可省略**：写了就用用户值（严格校验），没写就按下文「默认路径」查找。
 - `alpha`（0–1，默认 1）与 `exposure`（-1–1，默认 0）只对图片有意义，分别映射为图层透明度和亮度。
 - `fit`（默认 `cover`）/ `align`（默认 `center`）/ `render`（默认 `auto`）控制背景与图标的缩放、排版与插值，`position` 配合 `align: "custom"` 使用，见「图片缩放与排版」。
 - `effects`（可选）控制视觉特效与裁切缩放：图标资源与封面的主题项/包级对象都可带 `effects`，详见「视觉特效（effects）」。
 - `color_palette`（可选）按浅色/深色覆盖界面配色，见下文「配色」。
 - `icon` / `cover` 支持「主题无关」与「按主题」两种写法，见下文「包图标与封面（icon / cover）」。
-- 缺失的资源 ID 一律回退到应用默认样式（不跨主题借用）。
+- 缺失的资源 ID 一律回退到应用默认样式；显式文件不跨主题借用（默认位置查找有主题回退规则，见下节）。
+
+### 默认路径（`file` 可省略）
+
+`index.json` 里**所有 `file` 字段都可省略**。解析顺序 = 显式值 > 默认位置：
+
+1. 显式写了 `file`：严格使用该路径；路径非法或文件不存在报 `missingFile`，**不会**静默回退默认位置；
+2. 没写 `file`：按下面的候选列表依次尝试（位置优先，位置内按扩展名顺序），命中即用；
+3. 默认位置也没有：按可选字段处理，**不报错**——`assets` 资源项跳过并在导入时 `warn` 一次，包级 `icon` / `cover` / `license` 静默视为未提供，不阻塞导入。
+
+所有路径匹配都**大小写不敏感**（包内索引按小写路径建表），解析后的清单与 IndexedDB 里保存的是 zip 内的真实条目名。
+
+| 字段 / 资源 | 显式写法 | 默认位置（按序尝试） | 扩展名候选（按序） |
+| --- | --- | --- | --- |
+| 背景 `background.<name>.<theme>` | `file` | `assets/<theme>/<name>.<ext>` → `assets/<name>.<ext>` | `png` `webp` `jpg` `jpeg` `gif` `svg` `avif` |
+| 图标 `icon.<name>.<theme>` | `file` | `assets/icons/<theme>/<name>.<ext>` → `assets/<theme>/<name>.<ext>` → `assets/icons/<name>.<ext>` | 同上 |
+| 字体 `font.<theme>` | `file` | `assets/font.<ext>` → `font.<ext>` | `ttf` `otf` `woff` `woff2` |
+| 包级 `icon` | `file` / `light.file` / `dark.file` | `assets/<theme>/icon.<ext>` → `icon.<ext>` | 图片候选同上 |
+| 包级 `cover` | 同上 | `assets/<theme>/cover.<ext>` → `cover.<ext>` | `png` `webp` `jpg` `jpeg` `svg` |
+| `license` | `file` | `LICENSE` → `LICENSE.txt` → `LICENSE.md` → `license` → `license.md`（大小写不敏感） | — |
+
+- `<name>` 是资源 ID 里类别与主题之间的部分，**可以含点号**：`background.setting.generic.light` → `assets/light/setting.generic.png`；`icon.setting.datas.dark` → `assets/icons/dark/setting.datas.png`。
+- 默认位置命中的文件与显式 `file` 走同一套校验（图片 / 字体扩展名、封面 5 MB、许可证 200 KB 等）；不合规时按同样的错误码失败，而不是静默忽略。
+- 包级 `icon` / `cover`：整个字段省略、只写 `{}`、或写 `{ "light": {}, "dark": {} }` 时，两个主题分别按 `assets/<theme>/...` 查找；某主题在默认位置找不到时，依次回退包级显式 `file`、另一主题的默认位置（即「同一张图用在两个主题」）。两主题最终同文件且 `effects` 相同时，清单归一化成主题无关写法。
+- 显式只给一个主题、另一主题既没写默认位置也没有包级 `file` 时，该主题没有图（不借用另一个主题的显式文件；展示层仍会把缺失主题回退到另一主题显示）。
+- 现成的示例包（`aurora`）仍全部使用显式路径；省略 `file` 是给「只放默认位置文件」的极简包用的。
+
+最小包示例（只有 `index.json` + 默认位置的图片 / 许可证，**完全不写 `file`**）：
+
+```
+index.json                  # 下面这份
+icon.png                    # 包图标（根目录默认位置，亮/暗两个主题共用）
+cover.png                   # 详情页封面（根目录默认位置）
+LICENSE                     # 许可证
+assets/light/chat.png       # background.chat.light 的默认位置
+assets/icons/light/send.png # icon.send.light 的默认位置
+assets/font.woff2           # font.light / font.dark 的默认位置
+```
+
+```json
+{
+  "schema": 1,
+  "id": "minimal",
+  "name": "极简包",
+  "assets": {
+    "dslike_chat.style_pkg.background.chat.light": {},
+    "dslike_chat.style_pkg.icon.send.light": {},
+    "dslike_chat.style_pkg.font.light": {}
+  }
+}
+```
 
 ### 包图标与封面（icon / cover）
 
@@ -206,18 +267,21 @@ assets/dark/...          # 深色资源
 }
 ```
 
-回退与使用规则：
+回退与使用规则（主题项的 `file` 都可省略，省略时按该主题默认位置查找，见「默认路径」）：
 
 | 写法 | 亮色主题用 | 暗色主题用 |
 | --- | --- | --- |
 | `{ "file": "a.png" }` | `a.png` | `a.png` |
 | `{ "light": {...}, "dark": {...} }` | light 的文件 | dark 的文件 |
-| `{ "light": {...} }`（只有亮色） | light 的文件 | 无图（导入时不借用亮色图） |
+| `{ "light": {} }`（主题项不写 file） | `assets/light/icon.<ext>` 等默认位置 | 默认位置 → 包级 `file` → 亮色默认位置 |
+| `{ "light": {...} }`（只有亮色且显式） | light 的文件 | 无图（导入层不借用另一个主题的显式文件，展示层回退显示） |
 | `{ "light": {...}, "file": "a.png" }` | light 的文件 | `a.png` |
+| 整个字段省略 / `{}` | `assets/light/...` 默认位置 → 根目录 `icon.<ext>` | 暗色默认位置 → 包级 `file` → 亮色默认位置 |
 
-- 某个主题在包内没有图时，**导入层不跨主题借用**；列表图标与详情页 cover 在展示时会把当前主题缺失的图回退到另一主题（两个主题都没有才显示首字母方块 / 不铺背景）。
+- 没写 `file` 时允许「另一主题的默认图」兜底（默认位置查找）；**显式文件仍然不跨主题借用**。
+- 列表图标与详情页 cover 在展示时也会把当前主题缺失的图回退到另一主题（两个主题都没有才显示首字母方块 / 不铺背景）。
 - 包图标在列表按 40px 显示、详情页 hero 按 56px 显示，都跟随当前实际生效的主题（含「跟随系统」的解析结果）；切换主题时即时换图。
-- `icon` / `cover` 的路径规则与 `license` 一致：只允许包内相对路径，拒绝绝对路径与 `..`；文件缺失或路径非法报 `missingFile`。
+- `icon` / `cover` 的路径规则与 `license` 一致：只允许包内相对路径，拒绝绝对路径与 `..`；显式路径的文件缺失或路径非法报 `missingFile`（默认位置找不到则视为未提供，不报错）。
 - `cover` 接受 `png` / `jpg` / `jpeg` / `webp` / `svg`，**每个主题的文件各自 ≤ 5 MB**（`svg` 同样按字节数）；类型不符报 `badFileType`、超限报 `badConfig`。
 - `icon` 接受 `png` / `jpg` / `jpeg` / `webp` / `gif` / `svg` / `avif`，与普通图片共用整包大小上限。
 - 详情页把 cover 当作**整个详情内容区的背景**（`background-image` + `background-size: cover` + `background-position: center`，full-bleed），不再是 hero 小卡片；基础信息 / 资源清单 / 参数 / 调色板 / 许可分块改为浮在背景上的半透明面板，面板底色取主题的 `--dsw-alias-bg-base` + `color-mix`，并叠加与主题匹配的渐变遮罩，保证标题与正文在任意封面上可读。
@@ -465,6 +529,7 @@ assets/dark/...          # 深色资源
 - 图片：`png` `jpg` `jpeg` `webp` `gif` `svg` `avif`（`<img>` 与 `background-image` 均可用；SVG 不会执行脚本）
 - 字体：`ttf` `otf` `woff` `woff2`
 - 文本（许可证）：`txt` `md` `license`
+- `index.json` 的所有路径字段都可省略；默认位置查找同样只使用上面列出的扩展名（`cover` 的默认位置不含 `gif` / `avif`）
 - 单个 zip ≤ 20 MB，解压后 ≤ 60 MB，条目 ≤ 300；拒绝绝对路径与 `..`
 - 配套示例包（`aurora`）只含抽象背景与几何图标（渐变、极光带、光环、星点），**不含任何官方标志**；包图标与封面按亮/暗主题各给一张（浅色 / 深色版），其中给了 2–3 个图标静态特效、1 个图标 `window` + `zoom` + `tilt`，可作为视觉特效的参照；封面用于详情页整页背景、不带 `effects`。
 
@@ -478,7 +543,7 @@ assets/dark/...          # 深色资源
   - `position` 只允许 `^[A-Za-z0-9 %.,/+()-]{1,60}$`，并额外拒绝 `url(` / `expression(` / `/*`；
   - `color_palette` 只接受 `#hex` / `rgb()` / `rgba()` / `hsl()` / `hsla()` / `transparent`，且分量有界；
   - `effects` 只接受文档列出的已知键：`opacity` / `shadow` / `outerGlow` / `innerGlow` / `emboss` / `stroke` 的数值与颜色逐项校验，`window` 四个归一化坐标必须在 0–1 且 `x1 < x2`、`y1 < y2`，`zoom` 在 0–4，`tilt` 的 `maxAngle` / `perspective` / `scale` 有界且只允许出现在 `icon.*` 与 `cover`；未知键忽略并提示，数值/颜色不合规报 `badConfig`（带字段名）；
-  - `cover` 与 `icon` / `license` 一样只从索引取路径（`{ file }` 或按主题的 `{ light, dark, file? }` 两种写法都会逐项校验）：`cover` 只接受 `png` / `jpg` / `jpeg` / `webp` / `svg` 且**每个主题的文件** ≤ 5 MB（超限 `badConfig`、类型不符 `badFileType`），`icon` 接受普通图片扩展名；绝对路径与 `..` 在导入时被拒；
+  - `cover` 与 `icon` / `license` 一样只从 zip 条目取路径（`{ file }` 或按主题的 `{ light, dark, file? }` 两种写法都会逐项校验；省略 `file` 时只用文档列出的默认位置候选，同样在导入时逐项校验）：`cover` 只接受 `png` / `jpg` / `jpeg` / `webp` / `svg` 且**每个主题的文件** ≤ 5 MB（超限 `badConfig`、类型不符 `badFileType`），`icon` 接受普通图片扩展名；绝对路径与 `..` 在导入时被拒；
   - `sidebarTitle` / `description` / `author` / `version` / 许可证文本拒绝控制字符与 `<` / `>`（展示层仍用 React 文本，不做 HTML 解析）；`sidebarTitle` 不合格为致命错误（`badConfig`），其余非关键字段忽略并提示；
   - `align: "custom"` 必须同时给出 `position`；`position` 在非 `custom` 时会被忽略（导入时提示一次）。
 - **只用 blob URL**：`index.json` 里的路径只在 zip 内查文件；真正写进 CSS / `<img>` / `FontFace` / 详情页 `background-image` 的地址一律是 `URL.createObjectURL()` 生成的 `blob:` URL，并统一写成 `url("…")`（引号 + 反斜杠转义）。包内路径不会变成资源地址。视觉特效的派生图同样只在内存里用 canvas 生成 PNG Blob，再转成 `blob:` URL（canvas 同源、不加载远程资源，处理完即 revoke）。

@@ -1,6 +1,6 @@
 {
   "name": "dslike-chat-mobile",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "private": true,
   "description": "DSLike Chat 的 Android 壳（基于 chat-demo 的非官方封装）",
   "scripts": {

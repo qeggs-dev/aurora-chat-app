@@ -17,10 +17,11 @@ try {
 $pkg = "$root\out\desktop\win-unpacked"
 if (-not (Test-Path $pkg)) { throw "未找到打包目录: $pkg" }
 
-# 许可与声明随分发物走：壳的 LICENSE / NOTICE + 上游 LICENSE
+# 许可与声明随分发物走：本壳 LICENSE、NOTICE 与上游 LICENSE-UPSTREAM
 Copy-Item -Force "$root\LICENSE" $pkg
 Copy-Item -Force "$root\NOTICE.md" $pkg
-Copy-Item -Force "$root\web\LICENSE" "$pkg\LICENSE.chat-demo.txt"
+# 上游 chat-demo 的 MIT 许可：根目录 LICENSE-UPSTREAM 是唯一副本
+Copy-Item -Force "$root\LICENSE-UPSTREAM" "$pkg\LICENSE.chat-demo.txt"
 
 $version = (Get-Content "$root\desktop\package.json" -Raw | ConvertFrom-Json).version
 $zip = "$root\out\dslike-chat-desktop-$version-win-x64.zip"

@@ -47,7 +47,7 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\dslike-chat-debu
 
 ## 许可
 
-- 上游界面与 `web/`：MIT，版权归 `deepseek-ai/chat-demo` 作者，声明文件是 `web/LICENSE`（构建时随 `dist/LICENSE` 打进 asar / APK assets）。
+- 上游界面与 `web/`：MIT，版权归 `deepseek-ai/chat-demo` 作者；根目录 `LICENSE-UPSTREAM` 保存上游许可副本，构建时随 `dist/LICENSE` 打进 asar / APK assets，并在桌面包内以 `LICENSE.chat-demo.txt` 分发。
 - 本壳层代码：MIT，见根目录 `LICENSE`。
 - Electron / Chromium / Capacitor / 前端依赖的第三方声明见 `NOTICE.md`；分发时务必保留 `LICENSES.chromium.html` 与 `LICENSE.electron.txt`。
 - 本项目是**社区客户端**（基于 chat-demo 修改与扩展），属于非官方项目，未获 DeepSeek 背书；包标识使用中性的 `com.dslike.chat`。
@@ -131,17 +131,19 @@ zip 内可附 `icon.png`、`LICENSE` 与 `system_prompt_file` 指向的提示词
 
 设置 → 样式 里可以导入 `.zip` 样式包，替换界面背景、字体、图标与侧边栏标题。导入后存进 IndexedDB，同时只加载一个。**点击列表卡片即可加载**并立即生效；列表顶部固定一项「恢复默认样式」，点击后卸载当前包、恢复应用默认外观（没有任何包被加载时该项显示「当前为默认样式」且不可点）。
 
-每张卡片右侧有「详情」「删除」：详情在**同一区域内**切换到详情视图（不是新弹窗、也不新增设置分组），顶部有「← 返回」；详情页展示基础信息、亮/暗主题的资源清单、背景参数、调色板与许可证全文，包提供 `cover` 时用它作为详情页背景。删除有二次确认，删除正在使用的包后界面立即恢复默认。
+每张卡片右侧有「详情」「删除」：详情在**同一区域内**切换到详情视图（不是新弹窗、也不新增设置分组），顶部有「← 返回」；详情页展示基础信息、亮/暗主题的资源清单、背景参数、调色板与许可证全文。包提供 `cover` 时，**cover 作为整个详情内容区的背景**（`background-size: cover` 铺满、不再是 hero 小卡片），包图标、名称、作者·版本与「使用中」徽标叠在背景顶部，各信息分块改为浮在背景上的半透明面板（亮/暗主题分别取对应 cover，并叠加与主题匹配的渐变遮罩保证可读）。删除有二次确认，删除正在使用的包后界面立即恢复默认。
+
+> 列表与详情页的包图标、详情页 cover 都**跟随当前实际生效的主题**（含「跟随系统」解析后的结果）；清单里某个主题没提供图时，展示层回退到另一主题的图，两个主题都没有则显示首字母方块。
 
 ### 包结构
 
 ```
 index.json
-icon.png            # 包图标（可选，由 index.json 的 icon 指向）
-cover.png           # 详情页封面（可选，由 index.json 的 cover 指向）
-LICENSE             # 许可证（可选，由 index.json 的 license 指向）
-assets/light/...    # 亮色资源（路径任意，以 index.json 为准）
-assets/dark/...     # 深色资源
+icon.png                 # 包图标（可选；或按主题给 assets/light/icon.png、assets/dark/icon.png）
+cover.png                # 详情页封面（可选；或按主题各给一张，作为详情整页背景）
+LICENSE                  # 许可证（可选，由 index.json 的 license 指向）
+assets/light/...         # 亮色资源（路径任意，以 index.json 为准）
+assets/dark/...          # 深色资源
 ```
 
 ### index.json
@@ -153,10 +155,16 @@ assets/dark/...     # 深色资源
   "name": "极光",
   "description": "冷色调示例包",
   "author": "you",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "sidebarTitle": "Aurora Chat",
-  "icon": { "file": "icon.png" },
-  "cover": { "file": "cover.png" },
+  "icon": {
+    "light": { "file": "assets/light/icon.png" },
+    "dark": { "file": "assets/dark/icon.png" }
+  },
+  "cover": {
+    "light": { "file": "assets/light/cover.png" },
+    "dark": { "file": "assets/dark/cover.png" }
+  },
   "license": { "file": "LICENSE" },
   "assets": {
     "dslike_chat.style_pkg.background.main.light": { "file": "assets/light/main.png", "alpha": 1, "exposure": 0 }
@@ -168,10 +176,52 @@ assets/dark/...     # 深色资源
 - `assets` 的键是资源 ID；路径只从索引取，不支持硬编码文件名。
 - `alpha`（0–1，默认 1）与 `exposure`（-1–1，默认 0）只对图片有意义，分别映射为图层透明度和亮度。
 - `fit`（默认 `cover`）/ `align`（默认 `center`）/ `render`（默认 `auto`）控制背景与图标的缩放、排版与插值，`position` 配合 `align: "custom"` 使用，见「图片缩放与排版」。
-- `effects`（可选）控制视觉特效与裁切缩放：图标与封面支持静态效果与 `tilt`，包图标支持静态效果（`tilt` 报 `badConfig`），背景只支持 `window` / `zoom`，详见「视觉特效（effects）」。
+- `effects`（可选）控制视觉特效与裁切缩放：图标资源与封面的主题项/包级对象都可带 `effects`，详见「视觉特效（effects）」。
 - `color_palette`（可选）按浅色/深色覆盖界面配色，见下文「配色」。
-- `cover`（可选）是详情页封面：`png` / `jpg` / `jpeg` / `webp` / `svg`，≤ 5 MB；路径规则与 `icon` / `license` 一致（只允许包内相对路径，拒绝绝对路径与 `..`）。详情页背景**只使用该文件的 blob URL**（写成 `url("…")`），没有 `cover` 时详情页不铺背景图，其它资源不受影响。大小超限报 `badConfig`，扩展名不符报 `badFileType`，文件缺失或路径非法按 `missingFile` 拒绝。
+- `icon` / `cover` 支持「主题无关」与「按主题」两种写法，见下文「包图标与封面（icon / cover）」。
 - 缺失的资源 ID 一律回退到应用默认样式（不跨主题借用）。
+
+### 包图标与封面（icon / cover）
+
+`index.json` 顶层的 `icon` 与 `cover` 都支持两种写法：
+
+**1. 主题无关（旧写法，继续兼容）** —— 两个主题共用同一张图：
+
+```json
+"icon": { "file": "icon.png" },
+"cover": { "file": "cover.png" }
+```
+
+**2. 按主题分别提供** —— 亮/暗主题各用一张图；`file` 可选，作为两个主题的兜底：
+
+```json
+"icon": {
+  "light": { "file": "assets/light/icon.png" },
+  "dark": { "file": "assets/dark/icon.png" }
+},
+"cover": {
+  "light": { "file": "assets/light/cover.png" },
+  "dark": { "file": "assets/dark/cover.png" },
+  "file": "cover.png"
+}
+```
+
+回退与使用规则：
+
+| 写法 | 亮色主题用 | 暗色主题用 |
+| --- | --- | --- |
+| `{ "file": "a.png" }` | `a.png` | `a.png` |
+| `{ "light": {...}, "dark": {...} }` | light 的文件 | dark 的文件 |
+| `{ "light": {...} }`（只有亮色） | light 的文件 | 无图（导入时不借用亮色图） |
+| `{ "light": {...}, "file": "a.png" }` | light 的文件 | `a.png` |
+
+- 某个主题在包内没有图时，**导入层不跨主题借用**；列表图标与详情页 cover 在展示时会把当前主题缺失的图回退到另一主题（两个主题都没有才显示首字母方块 / 不铺背景）。
+- 包图标在列表按 40px 显示、详情页 hero 按 56px 显示，都跟随当前实际生效的主题（含「跟随系统」的解析结果）；切换主题时即时换图。
+- `icon` / `cover` 的路径规则与 `license` 一致：只允许包内相对路径，拒绝绝对路径与 `..`；文件缺失或路径非法报 `missingFile`。
+- `cover` 接受 `png` / `jpg` / `jpeg` / `webp` / `svg`，**每个主题的文件各自 ≤ 5 MB**（`svg` 同样按字节数）；类型不符报 `badFileType`、超限报 `badConfig`。
+- `icon` 接受 `png` / `jpg` / `jpeg` / `webp` / `gif` / `svg` / `avif`，与普通图片共用整包大小上限。
+- 详情页把 cover 当作**整个详情内容区的背景**（`background-image` + `background-size: cover` + `background-position: center`，full-bleed），不再是 hero 小卡片；基础信息 / 资源清单 / 参数 / 调色板 / 许可分块改为浮在背景上的半透明面板，面板底色取主题的 `--dsw-alias-bg-base` + `color-mix`，并叠加与主题匹配的渐变遮罩，保证标题与正文在任意封面上可读。
+- `icon` / `cover` 的 `effects`：包级 `effects` 两个主题共用，主题项里的 `effects` 覆盖包级值；包图标继续按资源项生效（静态特效 + `window` / `zoom`），`tilt` 仍被拒绝（`badConfig`）。封面因改为整页背景，只让 `window` / `zoom` 参与取图；`opacity` / `shadow` / 光效 / `tilt` 虽仍被接受与校验（旧包可继续导入），但对铺满内容区的背景不再产生视觉效果。
 
 ### 资源 ID
 
@@ -251,15 +301,15 @@ assets/dark/...     # 深色资源
 
 ### 视觉特效（effects）
 
-`assets` 里的图片项可以再带可选的 `effects`；`icon` / `cover` 这两个顶层图片引用也可以在 `{ "file": …, "effects": { … } }` 里写 `effects`。所有效果都在导入时严格校验，非法值让导入失败（`badConfig`，错误信息带字段名），未知键忽略并提示。
+`assets` 里的图片项可以再带可选的 `effects`；`icon` / `cover` 这两个顶层图片引用也可以带 `effects`：主题无关写法写在 `{ "file": …, "effects": { … } }` 里；按主题写法可以把 `effects` 写在包级共用，或写进 `light` / `dark` 的主题项里（主题项优先）。所有效果都在导入时严格校验，非法值让导入失败（`badConfig`，错误信息带字段名），未知键忽略并提示。
 
 **允许矩阵**
 
 | 资源 | `window` / `zoom` | 静态效果（opacity / shadow / outerGlow / innerGlow / emboss / stroke） | `tilt` |
 | --- | --- | --- | --- |
 | `icon.*` 资源 | ✅ | ✅ | ✅ |
-| 包图标 `icon.png` | ✅ | ✅ | ❌（`badConfig`） |
-| 封面 `cover.png` | ✅ | ✅ | ✅ |
+| 包图标 `icon` | ✅ | ✅ | ❌（`badConfig`） |
+| 封面 `cover` | ✅（只影响取图，整页背景无静态效果） | ✅（解析/校验保留，整页背景不渲染） | ✅（解析/校验保留，整页背景不渲染） |
 | 背景 `background.*` | ✅ | ❌ 忽略并 warn | ❌ 忽略并 warn |
 | 字体 / 许可文本 | ❌ 忽略并 warn | ❌ 忽略并 warn | ❌ 忽略并 warn |
 
@@ -307,7 +357,7 @@ assets/dark/...     # 深色资源
 | `tilt.perspective` | 200–2000 px | `700` |
 | `tilt.scale` | 0.8–1.2 | `1.02` |
 
-- `tilt` 只允许出现在 `icon.*` 资源与 `cover` 上：图标在其 `<img>` 外包一层透视容器，封面在详情页 hero 的封面层上做偏转；其它位置出现 `tilt` 报 `badConfig`。
+- `tilt` 只允许出现在 `icon.*` 资源与 `cover` 上：图标在其 `<img>` 外包一层透视容器，其它位置出现 `tilt` 报 `badConfig`。封面已改为详情页整页背景，`tilt` 仍被解析与校验（旧包继续可导入），但不再产生视觉偏转。
 - 行为：`pointermove` 按光标在元素内的相对位置计算 `rotateX` / `rotateY`（限幅到 `maxAngle`），`pointerleave` / `pointercancel` 平滑回正；`transform-style: preserve-3d`；`prefers-reduced-motion: reduce` 时禁用；触屏（`pointerType !== "mouse"`）不启用。只挂指针事件，不拦截点击与键盘操作。
 - 只支持偏转的容器是「卡片 / 图标 / 封面」这类小元素；背景资源不能偏转。
 
@@ -416,7 +466,7 @@ assets/dark/...     # 深色资源
 - 字体：`ttf` `otf` `woff` `woff2`
 - 文本（许可证）：`txt` `md` `license`
 - 单个 zip ≤ 20 MB，解压后 ≤ 60 MB，条目 ≤ 300；拒绝绝对路径与 `..`
-- 配套示例包（`aurora`）只含抽象背景与几何图标（渐变、极光带、光环、星点），**不含任何官方标志**；其中给了 2–3 个图标静态特效、1 个图标 `window` + `zoom` + `tilt`，封面也带静态效果与 `tilt`，可作为视觉特效的参照。
+- 配套示例包（`aurora`）只含抽象背景与几何图标（渐变、极光带、光环、星点），**不含任何官方标志**；包图标与封面按亮/暗主题各给一张（浅色 / 深色版），其中给了 2–3 个图标静态特效、1 个图标 `window` + `zoom` + `tilt`，可作为视觉特效的参照；封面用于详情页整页背景、不带 `effects`。
 
 ### 安全边界
 
@@ -428,7 +478,7 @@ assets/dark/...     # 深色资源
   - `position` 只允许 `^[A-Za-z0-9 %.,/+()-]{1,60}$`，并额外拒绝 `url(` / `expression(` / `/*`；
   - `color_palette` 只接受 `#hex` / `rgb()` / `rgba()` / `hsl()` / `hsla()` / `transparent`，且分量有界；
   - `effects` 只接受文档列出的已知键：`opacity` / `shadow` / `outerGlow` / `innerGlow` / `emboss` / `stroke` 的数值与颜色逐项校验，`window` 四个归一化坐标必须在 0–1 且 `x1 < x2`、`y1 < y2`，`zoom` 在 0–4，`tilt` 的 `maxAngle` / `perspective` / `scale` 有界且只允许出现在 `icon.*` 与 `cover`；未知键忽略并提示，数值/颜色不合规报 `badConfig`（带字段名）；
-  - `cover` 与 `icon` / `license` 一样只从索引取路径：只接受 `png` / `jpg` / `jpeg` / `webp` / `svg` 且 ≤ 5 MB（超限 `badConfig`、类型不符 `badFileType`），绝对路径与 `..` 在导入时被拒；
+  - `cover` 与 `icon` / `license` 一样只从索引取路径（`{ file }` 或按主题的 `{ light, dark, file? }` 两种写法都会逐项校验）：`cover` 只接受 `png` / `jpg` / `jpeg` / `webp` / `svg` 且**每个主题的文件** ≤ 5 MB（超限 `badConfig`、类型不符 `badFileType`），`icon` 接受普通图片扩展名；绝对路径与 `..` 在导入时被拒；
   - `sidebarTitle` / `description` / `author` / `version` / 许可证文本拒绝控制字符与 `<` / `>`（展示层仍用 React 文本，不做 HTML 解析）；`sidebarTitle` 不合格为致命错误（`badConfig`），其余非关键字段忽略并提示；
   - `align: "custom"` 必须同时给出 `position`；`position` 在非 `custom` 时会被忽略（导入时提示一次）。
 - **只用 blob URL**：`index.json` 里的路径只在 zip 内查文件；真正写进 CSS / `<img>` / `FontFace` / 详情页 `background-image` 的地址一律是 `URL.createObjectURL()` 生成的 `blob:` URL，并统一写成 `url("…")`（引号 + 反斜杠转义）。包内路径不会变成资源地址。视觉特效的派生图同样只在内存里用 canvas 生成 PNG Blob，再转成 `blob:` URL（canvas 同源、不加载远程资源，处理完即 revoke）。

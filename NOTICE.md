@@ -1,6 +1,6 @@
 # 许可与第三方声明（NOTICE）
 
-本目录（chat-demo-shell）只包含**壳层代码**（Electron 主进程、Capacitor 配置、构建脚本）。
+本目录（DSLike Chat 的壳层工程）只包含**壳层代码**（Electron 主进程、Capacitor 配置、构建脚本）。
 聊天界面本体来自上游开源项目，按 MIT 分发，版权归其作者。
 
 ## 各部分的许可

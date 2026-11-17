@@ -1,8 +1,8 @@
 {
-  "name": "chat-demo-mobile",
+  "name": "dslike-chat-mobile",
   "version": "0.1.1",
   "private": true,
-  "description": "chat-demo 的 Android 壳（Capacitor）",
+  "description": "DSLike Chat 的 Android 壳（基于 chat-demo 的非官方封装）",
   "scripts": {
     "sync": "cap sync android",
     "apk": "cd android && gradlew.bat assembleDebug",

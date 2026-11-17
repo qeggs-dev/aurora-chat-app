@@ -1,6 +1,6 @@
 {
-  "appId": "com.chatdemo.shell",
-  "appName": "chat-demo",
+  "appId": "com.dslike.chat",
+  "appName": "DSLike Chat",
   "webDir": "www",
   "android": {
     "backgroundColor": "#f9fafb",

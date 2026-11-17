@@ -1,5 +1,5 @@
-appId: com.chatdemo.shell
-productName: chat-demo
+appId: com.dslike.chat
+productName: DSLike Chat
 copyright: MIT
 directories:
   output: ../out/desktop

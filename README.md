@@ -1,4 +1,4 @@
-# chat-demo-shell
+# DSLike Chat（chat-demo 的非官方桌面/移动壳）
 
 给上游开源项目 [`deepseek-ai/chat-demo`](https://github.com/deepseek-ai/chat-demo) v0.1.1 加的两层壳：
 
@@ -6,6 +6,14 @@
 - `mobile/` —— Capacitor Android 壳，WebView 加载打包进 assets 的同一份页面，已声明录音权限（语音输入可用），文件选择走 SAF。
 - `web/` —— 上游源码副本（含 `LICENSE`），构建产物 `dist/` 会分发给两层壳。
 - `scripts/` —— 一键构建脚本；`out/` —— 分发物。
+
+## 名称与声明
+
+- 对外名称：**DSLike Chat**（`appName`、页面标题、窗口标题、Android 桌面名、桌面 exe 名）。
+- 包标识：`com.dslike.chat`（中性命名，不使用 `deepseek` 作为组织名，避免暗示官方关系）。
+- 首次使用：启动后先弹「使用前请确认」，必须点「我已知悉，继续使用」才会继续；确认结果存在 `localStorage` 的 `chat-demo:disclaimer-accepted`，之后不再弹出。
+- 声明入口：`设置 → 关于` 随时可看非官方声明、上游仓库链接、上游 MIT 许可全文、图标与第三方组件说明。
+- 换名称/换 URL：`web/src/i18n/{zh,en}.ts`（文案）、`web/src/components/settings/DisclaimerGate.tsx`（弹窗）、`desktop/electron-builder.yml` 与 `mobile/capacitor.config.json`（包名/产品名）。
 
 ## 构建
 
@@ -39,6 +47,14 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\chat-demo-debug.
 - Electron / Chromium / Capacitor / 前端依赖的第三方声明见 `NOTICE.md`；分发时务必保留 `LICENSES.chromium.html` 与 `LICENSE.electron.txt`。
 - 本项目是**非官方封装**，包标识使用中性 `com.chatdemo.shell`，未获 DeepSeek 背书。
 
+## 名称与声明
+
+- 对外名称：**DSLike Chat**（`appName`、页面标题、窗口标题、Android 桌面名、桌面 exe 名）。
+- 包标识：`com.dslike.chat`（中性命名，不使用 `deepseek` 作为组织名，避免暗示官方关系）。
+- 首次使用：启动后先弹「使用前请确认」，必须点「我已知悉，继续使用」才会继续；确认结果存在 `localStorage` 的 `chat-demo:disclaimer-accepted`，之后不再弹出。
+- 声明入口：`设置 → 关于` 随时可看非官方声明、上游仓库链接、上游 MIT 许可全文、图标与第三方组件说明。
+- 换名称/换 URL：`web/src/i18n/{zh,en}.ts`（文案）、`web/src/components/settings/DisclaimerGate.tsx`（弹窗）、`desktop/electron-builder.yml` 与 `mobile/capacitor.config.json`（包名/产品名）。
+
 ## 构建与验证记录（2026-11-17）
 
 | 目标 | 结果 |
@@ -55,5 +71,6 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\chat-demo-debug.
 2. **JDK 版本**：Capacitor 8 的 `capacitor-android` 用 Java 21 源码，JDK 18 会报「无效的源发行版：21」。构建用 `D:\Apps\jdk-21.0.8`。
 3. **Electron 二进制被 pnpm 拦**：pnpm 11 不读 `package.json` 的 `pnpm.onlyBuiltDependencies`，要在 `pnpm-workspace.yaml` 写 `allowBuilds`（`pnpm approve-builds --all` 也会写这个文件）。
 4. **`ELECTRON_RUN_AS_NODE=1`**：本机环境里设了这个变量时，`chat-demo.exe --remote-debugging-port=…` 会被当成 Node 参数解析并以 exit 9 退出；启动前要清掉。
+
 
 

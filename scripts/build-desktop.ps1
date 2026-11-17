@@ -23,8 +23,9 @@ Copy-Item -Force "$root\NOTICE.md" $pkg
 Copy-Item -Force "$root\web\LICENSE" "$pkg\LICENSE.chat-demo.txt"
 
 $version = (Get-Content "$root\desktop\package.json" -Raw | ConvertFrom-Json).version
-$zip = "$root\out\chat-demo-desktop-$version-win-x64.zip"
+$zip = "$root\out\dslike-chat-desktop-$version-win-x64.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path "$pkg\*" -DestinationPath $zip -CompressionLevel Optimal
 Write-Output "desktop package: $pkg"
 Write-Output "zip: $zip ($([math]::Round((Get-Item $zip).Length/1MB,1)) MB)"
+

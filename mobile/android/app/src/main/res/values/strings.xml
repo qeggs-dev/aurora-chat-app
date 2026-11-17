@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">chat-demo</string>
-    <string name="title_activity_main">chat-demo</string>
-    <string name="package_name">com.chatdemo.shell</string>
-    <string name="custom_url_scheme">com.chatdemo.shell</string>
+    <string name="app_name">DSLike Chat</string>
+    <string name="title_activity_main">DSLike Chat</string>
+    <string name="package_name">com.dslike.chat</string>
+    <string name="custom_url_scheme">com.dslike.chat</string>
 </resources>

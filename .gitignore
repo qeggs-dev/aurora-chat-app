@@ -12,3 +12,5 @@ out/
 .cache/
 *.log
 .DS_Store
+run/
+

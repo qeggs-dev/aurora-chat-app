@@ -1,4 +1,4 @@
-package com.chatdemo.shell;
+package com.dslike.chat;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -27,7 +27,8 @@ $variant = if ($Release) { 'release' } else { 'debug' }
 $apk = Get-ChildItem "$android\app\build\outputs\apk\$variant" -Filter *.apk | Select-Object -First 1
 if (-not $apk) { throw "未找到 APK（$variant）" }
 New-Item -ItemType Directory -Force -Path "$root\out\mobile" | Out-Null
-Copy-Item -Force $apk.FullName "$root\out\mobile\chat-demo-$variant.apk"
-Write-Output "apk: $root\out\mobile\chat-demo-$variant.apk ($([math]::Round($apk.Length/1MB,1)) MB)"
+Copy-Item -Force $apk.FullName "$root\out\mobile\dslike-chat-$variant.apk"
+Write-Output "apk: $root\out\mobile\dslike-chat-$variant.apk ($([math]::Round($apk.Length/1MB,1)) MB)"
+
 
 

@@ -129,13 +129,16 @@ zip 内可附 `icon.png`、`LICENSE` 与 `system_prompt_file` 指向的提示词
 
 ## 自定义样式包
 
-设置 → 样式 里可以导入 `.zip` 样式包，替换界面背景、字体、图标与侧边栏标题。导入后存进 IndexedDB，同时只启用一个；删除后立即恢复默认。
+设置 → 样式 里可以导入 `.zip` 样式包，替换界面背景、字体、图标与侧边栏标题。导入后存进 IndexedDB，同时只加载一个。**点击列表卡片即可加载**并立即生效；列表顶部固定一项「恢复默认样式」，点击后卸载当前包、恢复应用默认外观（没有任何包被加载时该项显示「当前为默认样式」且不可点）。
+
+每张卡片右侧有「详情」「删除」：详情在**同一区域内**切换到详情视图（不是新弹窗、也不新增设置分组），顶部有「← 返回」；详情页展示基础信息、亮/暗主题的资源清单、背景参数、调色板与许可证全文，包提供 `cover` 时用它作为详情页背景。删除有二次确认，删除正在使用的包后界面立即恢复默认。
 
 ### 包结构
 
 ```
 index.json
 icon.png            # 包图标（可选，由 index.json 的 icon 指向）
+cover.png           # 详情页封面（可选，由 index.json 的 cover 指向）
 LICENSE             # 许可证（可选，由 index.json 的 license 指向）
 assets/light/...    # 亮色资源（路径任意，以 index.json 为准）
 assets/dark/...     # 深色资源
@@ -153,6 +156,7 @@ assets/dark/...     # 深色资源
   "version": "1.0.0",
   "sidebarTitle": "Aurora Chat",
   "icon": { "file": "icon.png" },
+  "cover": { "file": "cover.png" },
   "license": { "file": "LICENSE" },
   "assets": {
     "dslike_chat.style_pkg.background.main.light": { "file": "assets/light/main.png", "alpha": 1, "exposure": 0 }
@@ -165,6 +169,7 @@ assets/dark/...     # 深色资源
 - `alpha`（0–1，默认 1）与 `exposure`（-1–1，默认 0）只对图片有意义，分别映射为图层透明度和亮度。
 - `fit`（默认 `cover`）/ `align`（默认 `center`）/ `render`（默认 `auto`）控制背景与图标的缩放、排版与插值，`position` 配合 `align: "custom"` 使用，见「图片缩放与排版」。
 - `color_palette`（可选）按浅色/深色覆盖界面配色，见下文「配色」。
+- `cover`（可选）是详情页封面：`png` / `jpg` / `jpeg` / `webp` / `svg`，≤ 5 MB；路径规则与 `icon` / `license` 一致（只允许包内相对路径，拒绝绝对路径与 `..`）。详情页背景**只使用该文件的 blob URL**（写成 `url("…")`），没有 `cover` 时详情页不铺背景图，其它资源不受影响。大小超限报 `badConfig`，扩展名不符报 `badFileType`，文件缺失或路径非法按 `missingFile` 拒绝。
 - 缺失的资源 ID 一律回退到应用默认样式（不跨主题借用）。
 
 ### 资源 ID
@@ -311,6 +316,7 @@ assets/dark/...     # 深色资源
 - 字体：`ttf` `otf` `woff` `woff2`
 - 文本（许可证）：`txt` `md` `license`
 - 单个 zip ≤ 20 MB，解压后 ≤ 60 MB，条目 ≤ 300；拒绝绝对路径与 `..`
+- 配套示例包（`aurora`）只含抽象背景与几何图标（渐变、极光带、光环、星点），**不含任何官方标志**。
 
 ### 安全边界
 
@@ -321,9 +327,10 @@ assets/dark/...     # 深色资源
   - `fit` / `align` / `render` 只接受上表枚举，非法值报 `badConfig`，错误信息带字段名；
   - `position` 只允许 `^[A-Za-z0-9 %.,/+()-]{1,60}$`，并额外拒绝 `url(` / `expression(` / `/*`；
   - `color_palette` 只接受 `#hex` / `rgb()` / `rgba()` / `hsl()` / `hsla()` / `transparent`，且分量有界；
+  - `cover` 与 `icon` / `license` 一样只从索引取路径：只接受 `png` / `jpg` / `jpeg` / `webp` / `svg` 且 ≤ 5 MB（超限 `badConfig`、类型不符 `badFileType`），绝对路径与 `..` 在导入时被拒；
   - `sidebarTitle` / `description` / `author` / `version` / 许可证文本拒绝控制字符与 `<` / `>`（展示层仍用 React 文本，不做 HTML 解析）；`sidebarTitle` 不合格为致命错误（`badConfig`），其余非关键字段忽略并提示；
   - `align: "custom"` 必须同时给出 `position`；`position` 在非 `custom` 时会被忽略（导入时提示一次）。
-- **只用 blob URL**：`index.json` 里的路径只在 zip 内查文件；真正写进 CSS / `<img>` / `FontFace` 的地址一律是 `URL.createObjectURL()` 生成的 `blob:` URL，并统一写成 `url("…")`（引号 + 反斜杠转义）。包内路径不会变成资源地址。
+- **只用 blob URL**：`index.json` 里的路径只在 zip 内查文件；真正写进 CSS / `<img>` / `FontFace` / 详情页 `background-image` 的地址一律是 `URL.createObjectURL()` 生成的 `blob:` URL，并统一写成 `url("…")`（引号 + 反斜杠转义）。包内路径不会变成资源地址。
 - **字体家族名固定**：字体统一注册为 `DSLikePackFont`（不来自清单），`FontFace` 的 family 是常量、source 只有 blob URL。
 - **CSP**（`index.html` 的 `Content-Security-Policy` 元标签）：
   - `img-src 'self' blob: data: https:`（`https:` 只用于搜索结果的站点图标）

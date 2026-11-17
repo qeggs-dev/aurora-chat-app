@@ -111,6 +111,7 @@ assets/dark/...     # 深色资源
 - `schema` 恒为 `1`；`id` 为 1–64 位 `[a-z0-9._-]`，**同 id 覆盖**已有包。
 - `assets` 的键是资源 ID；路径只从索引取，不支持硬编码文件名。
 - `alpha`（0–1，默认 1）与 `exposure`（-1–1，默认 0）只对图片有意义，分别映射为图层透明度和亮度。
+- `color_palette`（可选）按浅色/深色覆盖界面配色，见下文「配色」。
 - 缺失的资源 ID 一律回退到应用默认样式（不跨主题借用）。
 
 ### 资源 ID
@@ -122,6 +123,68 @@ assets/dark/...     # 深色资源
 | 背景 | `background.main.{theme}`、`background.chat.{theme}`、`background.input_box.{theme}`、`background.sidebar.{theme}`、`background.new_session.{theme}`、`background.selected_session.{theme}`、`background.normal_session.{theme}`、`background.setting.generic.{theme}`、`background.setting.datas.{theme}`、`background.setting.about.{theme}` |
 | 字体 | `font.{theme}` |
 | 图标 | `icon.new_session.{theme}`、`icon.enter_sidebar.{theme}`、`icon.exit_sidebar.{theme}`、`icon.thinking.{theme}`、`icon.network.{theme}`、`icon.sound_input.{theme}`、`icon.link_file.{theme}`、`icon.edit.{theme}`、`icon.menu.{theme}`、`icon.delete.{theme}`、`icon.copy.{theme}`、`icon.regen.{theme}`、`icon.send.{theme}`、`icon.stop.{theme}`、`icon.left_arrow.{theme}`、`icon.right_arrow.{theme}`、`icon.setting.setting.{theme}`、`icon.setting.light.{theme}`、`icon.setting.dark.{theme}`、`icon.setting.device.{theme}`、`icon.setting.datas.{theme}`、`icon.setting.about.{theme}` |
+
+### 配色（color_palette）
+
+`index.json` 可以带可选的 `color_palette`，按当前主题（浅色 / 深色）覆盖界面语义色。配色只改变颜色变量，背景图、字体、图标仍走 `assets`；不写 `color_palette` 或其中某个令牌时，该令牌保持应用默认色。
+
+```json
+"color_palette": {
+  "light": {
+    "background": "#f7f9ff",
+    "surface": "#ffffff",
+    "surface_alt": "#eef2fa",
+    "text": "#14161a",
+    "text_secondary": "#4b5058",
+    "text_tertiary": "#7b818a",
+    "border": "rgba(20,22,26,0.10)",
+    "accent": "#4d6bfe",
+    "accent_text": "#ffffff",
+    "bubble": "#e9efff",
+    "code": "#f5f6f8",
+    "danger": "#e5484d",
+    "mask": "rgba(0,0,0,0.36)"
+  },
+  "dark": {
+    "background": "#0b1020",
+    "surface": "#121a30",
+    "surface_alt": "#182240",
+    "text": "#e8edff",
+    "text_secondary": "#a7b2d0",
+    "text_tertiary": "#7a86a8",
+    "border": "rgba(180,200,255,0.14)",
+    "accent": "#7c8cff",
+    "accent_text": "#0b1020",
+    "bubble": "#1a2545",
+    "code": "#141d38",
+    "danger": "#ff6b6f",
+    "mask": "rgba(2,6,18,0.6)"
+  }
+}
+```
+
+| 令牌 | 含义 | 影响的界面元素 |
+| --- | --- | --- |
+| `background` | 页面主画布底色 | 页面根背景（`--dsw-alias-bg-base`），同时同步根画布与 `meta[name="theme-color"]` |
+| `surface` | 浮起表面（卡片、输入框、菜单） | 弹层/卡片底色、输入框、菜单、悬浮按钮 |
+| `surface_alt` | 次级表面（侧栏、代码块底） | 侧栏底色、选择器、Markdown 代码块/行内代码/标签/占位 |
+| `text` | 主文字色 | 正文主文字、反色主文字 |
+| `text_secondary` | 次要文字色 | 次要文字、Toast、Tooltip、高对比按钮底色 |
+| `text_tertiary` | 三级文字色 | 辅助文字、说明文字、弱化文字 |
+| `border` | 边框色 | 三级边框（`border-l1/-l2/-l3`）与深色细边框 |
+| `accent` | 品牌强调色 | 品牌色/品牌文字、主按钮及 hover、幽灵按钮激活边框 |
+| `accent_text` | 强调色上的文字色 | 主按钮/品牌底上的前景文字、纯白静态色 |
+| `bubble` | 聊天气泡底色 | 用户消息气泡 |
+| `code` | 代码块底色 | Markdown 代码块及其标题栏（优先于 `surface_alt` 的同一变量） |
+| `danger` | 错误/危险色 | 错误状态的主色与次色 |
+| `mask` | 全屏遮罩色 | 模态遮罩（`--dslike-mask`） |
+
+- `light` / `dark` 都可单独缺省：当前主题没有对应配色时，整套配色不生效并回到应用默认色。
+- 令牌全部可选，缺失的令牌只回退自身对应的默认色；同一令牌映射多个变量，未在表中列出的变量不受影响。
+- 未知令牌键直接忽略；`color_palette`、`light`、`dark` 中任一不是对象，或已知令牌不是合法 CSS 颜色，都会让导入失败（`badIndex`）。
+- 颜色值只允许：`#rgb`、`#rgba`、`#rrggbb`、`#rrggbbaa`、`rgb()`、`rgba()`、`hsl()`、`hsla()`、`transparent`（大小写不敏感）；不接受 `url()`、CSS 变量、其他颜色名等写法。
+- 写了 `text` 会自动派生半透明交互层（hover 6% / active 10% / hover-accent 14% / hover-danger 8% / 侧栏 hover 8% / 骨架屏 4%）；写了 `accent` 会自动派生幽灵按钮激活 12%/20% 与侧栏激活强调 16%，无需逐个填写。
+- 配色变量写在 `body` 上（主题别名定义在 `body`），切换到另一主题或停用样式包时全部移除，回到主题默认。
 
 ### 支持的文件与限制
 

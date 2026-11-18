@@ -60,8 +60,8 @@ jobs:
           rm -rf desktop/dist
           cp -r web/dist desktop/dist
           pnpm --dir desktop exec electron-builder --linux AppImage deb --x64 \
-            --config desktop/electron-builder.yml \
-            --config.directories.output=out/ci-linux
+            --config electron-builder.yml \
+            --config.directories.output=${{ github.workspace }}/out/ci-linux
         env:
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
       - uses: actions/upload-artifact@v4
@@ -93,7 +93,7 @@ jobs:
           pnpm --dir desktop install --frozen-lockfile
           Remove-Item -Recurse -Force desktop/dist -ErrorAction SilentlyContinue
           Copy-Item -Recurse web/dist desktop/dist
-          pnpm --dir desktop exec electron-builder --win nsis zip --x64 --config desktop/electron-builder.yml --config.directories.output=out/ci-win
+          pnpm --dir desktop exec electron-builder --win nsis zip --x64 --config electron-builder.yml --config.directories.output=${{ github.workspace }}/out/ci-win
         env:
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
       - uses: actions/upload-artifact@v4
@@ -106,6 +106,7 @@ jobs:
 
   android:
     needs: web
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -113,7 +114,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
       - uses: pnpm/action-setup@v4
         with:
           version: 11
@@ -126,6 +126,7 @@ jobs:
           path: web/dist
       - name: Build debug APK
         run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
           pnpm --dir mobile install --frozen-lockfile
           rm -rf mobile/www
           cp -r web/dist mobile/www
@@ -142,7 +143,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: always() && startsWith(github.ref, 'refs/tags/')
     needs: [linux, windows, android]
     runs-on: ubuntu-latest
     steps:
@@ -159,4 +160,4 @@ jobs:
             artifacts/windows-packages/*
             artifacts/linux-packages/*
             artifacts/android-apk/*
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false

@@ -13,10 +13,10 @@
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
-| Windows | urora-chat-<版本>-win-x64.exe | NSIS 安装器（可选择安装目录、创建快捷方式） |
-| Windows | urora-chat-<版本>-win-x64.zip | 免安装便携版，解压后运行 Aurora Chat.exe |
-| Linux | urora-chat-<版本>-linux-x86_64.AppImage / .deb / .tar.gz | AppImage 免安装；deb 适用于 Debian/Ubuntu；tar.gz 为便携版 |
-| Android | urora-chat-debug.apk | debug 签名的测试包，允许「未知来源安装」即可安装 |
+| Windows | `aurora-chat-<版本>-win-x64.exe` | NSIS 安装器（可选择安装目录、创建快捷方式） |
+| Windows | `aurora-chat-<版本>-win-x64.zip` | 免安装便携版，解压后运行 Aurora Chat.exe |
+| Linux | `aurora-chat-<版本>-linux-x86_64.AppImage` / `aurora-chat-<版本>-linux-amd64.deb` | AppImage 免安装（`chmod +x` 后运行）；deb 适用于 Debian/Ubuntu |
+| Android | `aurora-chat-<版本>-release.apk` | release 签名；本地用 `scripts/build-mobile.ps1 -Release` 构建，CI 则附 `*-debug.apk` |
 
 ### 本地 release 签名（Android）
 
@@ -35,6 +35,7 @@ mobile/android/keystore.properties             # storePassword / keyAlias / keyP
 ```
 
 注意：release APK 与 debug APK 签名不同，手机上从 debug 换装 release 需要先卸载（会清数据）；发布给他人安装则直接装 release 包即可。keystore 一旦丢失，未来版本无法覆盖安装已发布的 release 包，务必备份。
+
 本地也随时可以构建：scripts\build-all.ps1 一次产出 Windows（安装器 + 便携 zip）与 Android APK；Linux 包由 CI 的 Ubuntu runner 生成。
 ## 名称与声明
 

@@ -60,7 +60,7 @@ jobs:
           rm -rf desktop/dist
           cp -r web/dist desktop/dist
           pnpm --dir desktop exec electron-builder --linux AppImage deb --x64 \
-            --config electron-builder.yml \
+            --config electron-builder.yml --publish never \
             --config.directories.output=${{ github.workspace }}/out/ci-linux
         env:
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/

@@ -103,7 +103,7 @@ zip 内可附图标、许可证与提示词文件；压缩包 ≤5 MB、解压 �
 非内置预设的 `description` / `author` / `version` / `copyright` 在**保存**与 **zip 导入**时都必须非空（trim 后）：
 
 - 保存时字段级报错（`missingDescription` / `missingAuthor` / `missingVersion` / `missingCopyright`）；
-- 导入时同样校验，**版权声明为空会直接拒绝整个导入包**；
+- 导入时同样校验；但**包内带完整 LICENSE 文件时，版权声明可由该文件承担**（详情页展示许可证全文），两者都没有才拒绝整个导入包；
 - 内置默认预设豁免（只需要名称）；旧预设缺字段仍可打开编辑，补齐后才能保存；导入只读预设不保存，故不受保存校验影响。
 
 ## 模型列表

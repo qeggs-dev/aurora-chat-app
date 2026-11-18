@@ -19,4 +19,5 @@ foreach ($dst in @("$root\desktop\dist", "$root\mobile\www")) {
   if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
   Copy-Item -Recurse "$root\web\dist" $dst
 }
+Copy-Item -Force "$root\assets\brand\aurora-48.png" "$root\web\dist\favicon.png"
 Write-Output "web dist -> desktop\dist, mobile\www"

@@ -101,7 +101,7 @@
 ## 2. 40 个槽位与造型
 
 资源 ID：`dslike_chat.style_pkg.icon.<槽位>.<theme>`；默认文件路径 `assets/icons/<theme>/<槽位>.png`。
-槽位名中的 `.`（如 `setting.usage`）直接出现在文件名里，与 README 的默认路径规则一致。
+槽位名中的 `.`（如 `setting.usage`）直接出现在文件名里，与 `docs/style-packs.md` 的默认路径规则一致。
 
 | # | 槽位 | 造型 | 点缀（极光渐变） |
 | --- | --- | --- | --- |
@@ -206,9 +206,9 @@ node tools/style-fixture/gen.mjs
 
 ## 6. 维护注意
 
-- 根目录 `README.md` 的「资源 ID」表与示例包 effects 说明由文档代理维护，本规范以本文件为准；
+- 根目录 `docs/style-packs.md` 的「资源 ID」表与示例包 effects 说明由文档代理维护，本规范以本文件为准；
   1.2.3 起 aurora 包**不再给图标加 `effects`**（描边/发光/偏转会让 24px 图标不再统一），
-  effects 的校验与生效示例仍由 `bg-effects.zip` / `bad-*` 异常包与根 README 的 effects 章节覆盖；
+  effects 的校验与生效示例仍由 `bg-effects.zip` / `bad-*` 异常包与`docs/style-packs.md` 的 effects 章节覆盖；
 - **1.2.4 起新增图标必须是纯描边**；`iconPainter` 不提供实心矩形 / 实心多边形图元，
   只能用 `stroke` / `strokeArc` / `strokeRoundRect` 与 `fillCircle`（仅限 ≤2×线宽的端点圆点）；
 - 改任何几何后必须重新生成并重跑总览图 / 指标，不要手改 PNG；

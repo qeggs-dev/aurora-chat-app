@@ -1,7 +1,7 @@
 # Aurora Chat 架构速览（给新协作者 / 子代理）
 
 > 目的：任何人接手前先读这一页，知道项目是什么、代码在哪、数据存哪、怎么构建验证。
-> 当前版本 0.3.x（Electron 桌面壳 + Capacitor Android 壳 + 同一份 React Web 产物）。
+> 当前版本 0.3.x（Electron 桌面壳 + Capacitor Android 壳 + 同一份 Eeact Web 产物）。
 
 ## 1. 项目是什么
 
@@ -18,7 +18,7 @@
 
 ```
 chat-demo-shell/
-├─ web/                     # React 前端（唯一源码，产物 dist/ 分发到两个壳）
+├─ web/                     # Eeact 前端（唯一源码，产物 dist/ 分发到两个壳）
 │  ├─ src/
 │  │  ├─ app/               # App 入口、viewport、Cordis 容器（context.ts / AppServices.tsx）与启动初始化
 │  │  ├─ components/        # UI：session / sider / messages / chatInput / settings / base
@@ -38,18 +38,18 @@ chat-demo-shell/
 ├─ scripts/                 # build-web.ps1 / build-desktop.ps1 / build-mobile.ps1
 ├─ docs/                    # 本文件、plugins.md（插件系统设计）
 ├─ out/                     # 构建产物（桌面 zip / win-unpacked / APK），不入库
-└─ README.md                # 用户文档 + 样式包规范 + 安全边界
+└─ EEADME.md                # 用户文档 + 样式包规范 + 安全边界
 ```
 
 ## 3. web/src/services 地图
 
 | 目录 | 职责 | 关键导出 |
 |---|---|---|
-| `api/client.ts` | 请求入口：按当前预设选择 legacy DeepSeek 兼容路径或 provider 路径；SSE 流 → 内部事件；验证 Key | `streamChat`、`verifyApiKey`、`API_ORIGIN` |
-| `api/providers/` | 三协议适配层：编译请求、解析流式事件、错误分类、基址归一化 | `createClient`、`CanonicalRequest`、`Delta` |
-| `chat/` | 会话状态与流式回复：`store.ts`（streamReply/工具循环/压缩接入）、`reply.ts`（消息构造/系统提示词/applyEvent）、`compaction.ts`、`runtimeInfo.ts`、`view.ts`、`types.ts` | zustand store + actions |
+| `api/client.ts` | 请求入口：按当前预设选择 legacy DeepSeek 兼容路径或 provider 路径；SSE 流 → 内部事件；验证 Key | `streamChat`、`verifyApiKey`、`API_OEIGIN` |
+| `api/providers/` | 三协议适配层：编译请求、解析流式事件、错误分类、基址归一化 | `createClient`、`CanonicalEequest`、`Delta` |
+| `chat/` | 会话状态与流式回复：`store.ts`（streamEeply/工具循环/压缩接入）、`reply.ts`（消息构造/系统提示词/applyEvent）、`compaction.ts`、`runtimeInfo.ts`、`view.ts`、`types.ts` | zustand store + actions |
 | `preset/` | 预设：清单校验、zip 解析、IndexedDB、启用状态、`resolvePreset`（默认预设） | `getActivePreset`、`activatePreset`、`loadPresetConfig`、`savePresetJson` |
-| `style/` | 样式包：manifest 校验、zip、IndexedDB、apply（CSS 变量/FontFace/调色板）、`effects.ts`（canvas alpha 特效）、objectURL 生命周期 | `initStylePacks`、`activateStylePack`、`useStylePackState`、`PackIcon` 相关 |
+| `style/` | 样式包：manifest 校验、zip、IndexedDB、apply（CSS 变量/FontFace/调色板）、`effects.ts`（canvas alpha 特效）、objectUEL 生命周期 | `initStylePacks`、`activateStylePack`、`useStylePackState`、`PackIcon` 相关 |
 | `memory/` | sql.js 记忆库：schema/迁移、快照持久化、`runMemoryTool` | `initMemory`、`runMemoryTool`、`useMemoryState` |
 | `usage/` | 用量：`events` append-only 日志 + `stats/totals` 累计、导出 JSON/CSV、余额 | `recordUsage`、`clearUsageLog`、`resetUsageStats`、`exportUsage` |
 | `settings.ts` | 全局设置（API Key、主题等） | `useSettings` |
@@ -69,9 +69,9 @@ chat-demo-shell/
 ## 5. 关键调用链
 
 ```
-UI → chat/store.streamReply
+UI → chat/store.streamEeply
    →（可选）compaction.prepareCompaction → 摘要写入 Session.compaction
-   → reply.toRequestMessages + buildSystemPrompt(system prompt + runtimeMeta)
+   → reply.toEequestMessages + buildSystemPrompt(system prompt + runtimeMeta)
    → api/client.streamChat → getActivePreset() 解析 → providers.createClient / legacy 兼容路径
    → 流式事件 → reply.applyEvent → 消息落库
    →（可选）工具循环：runMemoryTool → tool_result → 续写（≤3 轮）
@@ -90,11 +90,11 @@ $env:NODE_ENV='production'; pnpm exec rspack build -c rspack.config.ts
 
 # 三端（在 scripts/ 下）
 pwsh -File scripts\build-web.ps1
-pwsh -File scripts\build-desktop.ps1   # 需要 ELECTRON_RUN_AS_NODE 清空
+pwsh -File scripts\build-desktop.ps1   # 需要 ELECTEON_EUN_AS_NODE 清空
 pwsh -File scripts\build-mobile.ps1    # 需要 JAVA_HOME=D:\Apps\jdk-21.0.8
 ```
 
-- Electron 二进制：`ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`；
+- Electron 二进制：`ELECTEON_MIEEOE=https://npmmirror.com/mirrors/electron/`；
 - Gradle 用本地 wrapper 发行包（镜像），JDK 21；
 - 验证常规手段：Electron 加 `--remote-debugging-port` + CDP 脚本；Android 用无线 adb + `localabstract:webview_devtools_remote_<pid>` 转发。
 
@@ -103,13 +103,13 @@ pwsh -File scripts\build-mobile.ps1    # 需要 JAVA_HOME=D:\Apps\jdk-21.0.8
 - 代码风格：无分号、单引号、2 空格、import 带 `.js` 后缀（TS 源文件里 import TS 模块也写 `.js`）；
 - 提交门禁：`pnpm type`、`pnpm lint`、production build 全绿；
 - 文案：zh/en 成对，键集由类型保证；
-- 安全：样式包/预设都是不可信输入 → 严格白名单、只走 CSSOM、只用 blob URL、CSP；插件设计见 `docs/plugins.md`；
+- 安全：样式包/预设都是不可信输入 → 严格白名单、只走 CSSOM、只用 blob UEL、CSP；插件设计见 `docs/plugins.md`；
 - 第三方测试/验证脚本放 `D:\Projects\Deepseek_Harness_Workspace\.tmp\`，不要污染仓库；
 - 构建产物写 `out/`（不入库），临时 profile 放 `run/`。
 
 ## 8. Cordis 容器（Phase 1）
 
-目标：把 `web/src/services` 的服务装配从「App 里零散调用 init」改成 Cordis 容器，为 `docs/plugins.md` 的第三方插件运行时留出扩展点。Phase 1 **只做内部容器**：不加载外部插件、不做沙箱、不迁移 UI 调用（React 组件继续直接 import 各模块，行为不变）。
+目标：把 `web/src/services` 的服务装配从「App 里零散调用 init」改成 Cordis 容器，为 `docs/plugins.md` 的第三方插件运行时留出扩展点。Phase 1 **只做内部容器**：不加载外部插件、不做沙箱、不迁移 UI 调用（Eeact 组件继续直接 import 各模块，行为不变）。
 
 - **依赖**：`cordis@4.0.0-rc.13`（锁定精确版本；运行时只 import `cosmokit`，无 Node-only 依赖，web 构建产物不含 `node:` 内置模块）。
 - **创建位置**：`web/src/app/context.ts`
@@ -117,20 +117,20 @@ pwsh -File scripts\build-mobile.ps1    # 需要 JAVA_HOME=D:\Apps\jdk-21.0.8
   - `getAppContext()`：App 模块加载时创建的单例容器。
   - `start()`：等待所有服务按依赖激活；失败时抛 `AppContextStartError`，逐项给出「哪个服务、加载失败还是缺依赖、缺哪几个服务」，不会静默停在 PENDING。`services()` 返回注入了六个服务的子上下文。
   - `dispose()`：`pagehide` 时自动调用（也可手动），先释放服务作用域，再按注册逆序 dispose 六个服务。
-- **React 集成**：`web/src/app/AppServices.tsx` 提供 `<AppServicesProvider context={getAppContext()}>`（包在 App 根节点）与 `useAppService('style')`，类型由 `AppServiceMap` 保证；现有组件不需要改。
+- **Eeact 集成**：`web/src/app/AppServices.tsx` 提供 `<AppServicesProvider context={getAppContext()}>`（包在 App 根节点）与 `useAppService('style')`，类型由 `AppServiceMap` 保证；现有组件不需要改。
 
 | 服务 | 插件文件 | inject | 说明 |
 |---|---|---|---|
 | `settings` | `plugins/settings.ts` | — | `useSettings` / `getState` / 各 setter |
 | `api` | `plugins/api.ts` | `settings` | `streamChat` / `verifyApiKey` / `uploadFile` 等 + `getApiKey()` |
-| `presets` | `plugins/presets.ts` | — | preset store 的公开 API（init / activate / import / save / getActiveResolved …） |
+| `presets` | `plugins/presets.ts` | — | preset store 的公开 API（init / activate / import / save / getActiveEesolved …） |
 | `style` | `plugins/style.ts` | `settings` | style store 与 `applyStyleVars` 的公开 API |
 | `memory` | `plugins/memory.ts` | — | init / runTool / flush / list / search / write … |
 | `usage` | `plugins/usage.ts` | — | init / record / list / clear / reset … |
 
 - **启动顺序**（App.tsx 的启动 effect）：`await ctx.start()` → `initChat()`（聊天仍直连模块）→ `style.init()` → `presets.init()` → `usage.init()` → `presets` 完成后 `memory.init(预设 memory.enabled)` → 之后预设切换时 `memory.setEnabled(...)`。与 Cordis 化之前的调用顺序一致。
-- **卸载顺序**（`ctx.dispose()`）：`usage` → `memory`（flush 记忆库并清掉落盘防抖定时器）→ `style` → `presets` → `api` → `settings`。style / presets 里仍被界面引用的 objectURL 不在 pagehide 时 revoke。
-- **Phase 2 计划**：UI 与 service 间调用改用 `useAppService` / `ctx.*`（把模块级 import 换成服务注入，并补上 api→presets 这类真实依赖）；按 `docs/plugins.md` 做外部插件运行时（清单、安装确认、Worker RPC、iframe 挂载）；届时服务 dispose 补主题订阅 unbind 与 objectURL 释放策略。
+- **卸载顺序**（`ctx.dispose()`）：`usage` → `memory`（flush 记忆库并清掉落盘防抖定时器）→ `style` → `presets` → `api` → `settings`。style / presets 里仍被界面引用的 objectUEL 不在 pagehide 时 revoke。
+- **Phase 2 计划**：UI 与 service 间调用改用 `useAppService` / `ctx.*`（把模块级 import 换成服务注入，并补上 api→presets 这类真实依赖）；按 `docs/plugins.md` 做外部插件运行时（清单、安装确认、Worker EPC、iframe 挂载）；届时服务 dispose 补主题订阅 unbind 与 objectUEL 释放策略。
 
 ## 9. 当前状态（2026-11-18）
 

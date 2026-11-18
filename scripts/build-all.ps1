@@ -8,15 +8,16 @@ Write-Output '=== web ==='
 if ($LASTEXITCODE -ne 0) { throw 'build-web failed' }
 
 $desktopJob = Start-Job -ScriptBlock {
-  param($script)
-  & $script
+  param($script, $arg)
+  if ($arg) { & $script $arg } else { & $script }
   exit $LASTEXITCODE
-} -ArgumentList "$root\scripts\build-desktop.ps1"
+} -ArgumentList "$root\scripts\build-desktop.ps1", '-ParallelTargets'
 
 $mobileJob = Start-Job -ScriptBlock {
   param($script)
   $env:JAVA_HOME = 'D:\Apps\jdk-21.0.8'
-  & $script
+  # 一次 gradle 调用同时产出 debug 与 release APK
+  & $script -Both
   exit $LASTEXITCODE
 } -ArgumentList "$root\scripts\build-mobile.ps1"
 

@@ -1,11 +1,11 @@
 # API 预设（Preset）
 
-设置 → 预设 管理 API 配置。每个预设对应一份 `api_configs.json`，可以 `.zip` 导入，也可以直接在页面里编辑：
+设置 → 预设 管理 API 配置。每个预设对应一份 `api_configs.json`，可以 `.zip` 导入，也可以直接在页面里编辑（**zip 导入的预设只读**，见下文「导入预设只读」）：
 
-- **预设标签栏**：每个预设一个标签；`＋ 新建` 创建后立即切到该标签；标签上显示「已启用」徽标与未保存圆点。
-- **分栏编辑**：`API 设置`（协议 / base_url / model）、`模型参数`（temperature / top_p / max_tokens / stop / penalties / seed / reasoning_effort）、`提示词`（system prompt，留空用应用自带）、`记忆`（开关、检索条数与只读记忆列表）、`上下文压缩`（开关 / 触发阈值 / 保留条数 / 摘要提示词）。
+- **预设标签栏**：每个预设一个标签；`＋ 新建` 创建后立即切到该标签；标签上显示「内置 / 导入 / 已启用」徽标与未保存圆点。
+- **分栏编辑**：`基本信息`（名称 / 描述 / 作者 / 版本 / 版权声明 / 只读 id）、`API 设置`（协议 / base_url / model）、`模型参数`（temperature / top_p / max_tokens / stop / penalties / seed / reasoning_effort）、`提示词`（system prompt，支持模板变量，留空用应用自带）、`记忆`（开关、检索条数与只读记忆列表）、`上下文压缩`（开关 / 触发阈值 / 保留条数 / 摘要提示词）。
 - **三种协议**：`anthropic`（Messages，含 DeepSeek 兼容扩展）、`openai`（Chat Completions）、`responses`（OpenAI Responses）；请求由适配层统一编译，流式事件归一化后进入现有会话模型。
-- **运行时元信息**：每次请求在 system 提示词后追加一段动态环境（`platform` 由 `Capacitor.getPlatform()` / Electron UA 计算，另含版本、语言、主题与时间）。
+- **运行时元信息**：每次请求在 system 提示词后追加一段动态环境（`platform` 由 `Capacitor.getPlatform()` / Electron UA 计算，另含版本、语言与主题）。**不含时间**：提示词是请求前缀，写入时间会让同一环境下的前后请求前缀不一致、KV cache 每轮失效。
 - **API Key 不写入预设**：Key 仍在「数据管理」里全局配置。
 
 ```json
@@ -35,3 +35,70 @@ zip 内可附图标、许可证与提示词文件；压缩包 ≤5 MB、解压 �
 - 默认位置命中的文件同样走原有校验（图标扩展名、许可证 ≤200 KB、提示词文件 ≤64 KB）；不合规时按同样的错误码失败，而不是静默忽略。
 - 解析后 `icon` / `license` / `system_prompt_file` 会补成 zip 内的真实条目名（随预设存进 IndexedDB）；手写 JSON 建的预设没有 zip，因此仍然没有图标 / 许可证文件内容。
 - 显式 `system_prompt_file` 与内联 `system_prompt` 同时存在时，沿用旧规则：文件内容优先。
+
+## 提示词模板
+
+`提示词` 面板里的 system prompt 就是模板：请求前会把 `{{…}}` 变量替换成**当前生效配置**与运行环境的实际值，再追加运行时元信息。预设提示词与应用自带提示词都能用；没有变量时输出与原文完全一致。
+
+- **语法**：双花括号，变量名内部允许空格，例如 `{{preset.model}}` 与 `{{ preset.model }}` 等价。
+- **替换时机**：每次构造请求时渲染（不改写预设里保存的原文）；同一变量出现多次会全部替换。
+- **未识别的变量保留原样**，不会被清空（`{{preset.system_prompt}}`、`{{foo}}` 不参与求值），方便逐步调试模板。
+- **不提供时间变量**：时间会让提示词前缀每轮变化，破坏 KV cache；需要时间请写进用户消息。
+- **不提供 `preset.system_prompt`**：提示词引用自身会递归。
+- `preset.dump` 是完整预设摘要（JSON，**不含 system_prompt 自身与 API Key**），适合一次注入全部配置；也可以按需只取单个变量。
+
+| 变量 | 说明 |
+| --- | --- |
+| `{{preset.name}}` | 生效预设名称（未启用预设时为「应用自带的默认配置」） |
+| `{{preset.id}}` | 生效预设 id（未启用预设时为内置默认 id `default`） |
+| `{{preset.protocol}}` | 协议：`anthropic` / `openai` / `responses` |
+| `{{preset.base_url}}` | 接口地址（已去掉结尾斜杠） |
+| `{{preset.model}}` | 模型名 |
+| `{{preset.params}}` | 参数 JSON，如 `{"temperature":0.7,"top_p":0.95,…}` |
+| `{{preset.memory}}` | 记忆配置 JSON，如 `{"enabled":false,"max_results":8}` |
+| `{{preset.compaction}}` | 压缩配置 JSON，如 `{"enabled":true,"trigger_tokens":32000,…}` |
+| `{{preset.dump}}` | 上面的完整摘要（稳定、可读 JSON） |
+| `{{env.platform}}` | 运行平台：`android` / `ios` / `desktop` / `web` |
+| `{{env.app}}` | 应用名（`Aurora Chat`） |
+| `{{env.version}}` | 应用版本（构建时写入；拿不到时保留占位符） |
+| `{{env.locale}}` | 界面语言，如 `zh-CN` |
+| `{{env.theme}}` | 界面主题：`light` / `dark` |
+
+**未启用预设**（默认预设没有任何覆盖字段）时，`preset.*` 展开为应用自带的默认配置：协议 `anthropic`、默认 base_url（`<API Origin>/anthropic/v1`）、默认模型 `deepseek-flash`、默认参数（`temperature 1` / `top_p 1` / `max_tokens 4096` / penalties 0 / stop 空）、默认记忆（关闭、8 条）与默认压缩（开启、32000 tokens、保留 8 条），而不是空串。
+
+示例：
+
+```text
+你是 {{env.app}} 里的助手，当前模型 {{preset.model}}，参数 {{preset.params}}。
+运行平台：{{env.platform}}；界面语言：{{env.locale}}。
+```
+
+渲染后（示意）：
+
+```text
+你是 Aurora Chat 里的助手，当前模型 deepseek-flash，参数 {"temperature":1,"top_p":1,"max_tokens":4096,…}。
+运行平台：web；界面语言：zh-CN。
+```
+
+## 导入预设只读
+
+- zip 导入的预设带「导入」徽标，**不可编辑**：打开后所有可编辑字段（协议 / base_url / model / 参数 / 提示词 / 记忆 / 压缩等）禁用，不显示「保存」按钮，并给出一行说明。
+- 服务层同样强制：对导入预设调用保存 / 重命名等修改接口会直接失败（稳定错误码 `importedReadOnly`），不依赖界面是否禁用。
+- 删除允许；想改内容时用「复制为新预设」：从导入预设创建一份可编辑副本（自动去掉只能来自 zip 的图标 / 许可证 / 提示词文件引用，提示词用已解析的文本），保存后即为用户自建预设。
+- **内置默认预设不受影响**：它不算导入包，始终可编辑；留空的协议 / Base URL / 模型 / 参数 / 提示词 / 记忆 / 压缩会以「系统默认：<实际值>」作为 placeholder 显示当前真正生效的值，清空字段即回落到系统默认。
+- 旧数据里没有来源标记的预设按 `created` 处理，保持向后兼容。
+
+## 兼容模式（不发送 DeepSeek 私有扩展）
+
+设置 → 通用设置里有「兼容模式（不发送 DeepSeek 私有扩展）」开关，默认关闭，偏好保存在
+localStorage 的 `chat-demo:compatibility-mode`。
+
+开启后请求层（`src/services/api/client.ts`）在发送前移除 DeepSeek 专属内容，对默认 DeepSeek 端点、
+DeepSeek Anthropic 兼容预设以及 OpenAI Chat / Responses / 官方 Anthropic 等所有协议一视同仁：
+
+- 不发送 `safety_check`、`title`、DeepSeek 服务端工具（`deepseek_web_search` / `deepseek_read_url`）与 `latest_reminder` 角色；
+- 不发送 `thinking.effort`（`thinking.type` 仍由「深度思考」开关决定）；
+- thinking 不再因为 title / safety_check / 服务端工具存在而被强制开启；DeepSeek 兼容端点上的客户端记忆工具仍会强制 thinking（服务端硬约束，否则返回 400），兼容模式不影响这一点；
+- 标准采样参数（temperature / top_p / max_tokens / stop / penalties / seed）与消息结构保持不变。
+
+关闭开关时请求体与加入该功能前完全一致，默认行为无回归。

@@ -1,5 +1,5 @@
 # 打 Android APK（debug 默认；-Release 需自备签名）
-param([switch]$Release)
+param([switch]$Release, [switch]$Both)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $android = "$root\mobile\android"
@@ -24,18 +24,25 @@ try {
 
 Push-Location $android
 try {
-  $task = if ($Release) { 'assembleRelease' } else { 'assembleDebug' }
-  .\gradlew.bat $task --no-daemon --console=plain
+  if ($Both) {
+    # 一次 gradle 调用同时出 debug + release，复用任务图，比跑两次 gradle 快
+    .\gradlew.bat assembleDebug assembleRelease --no-daemon --console=plain
+  } else {
+    $task = if ($Release) { 'assembleRelease' } else { 'assembleDebug' }
+    .\gradlew.bat $task --no-daemon --console=plain
+  }
 } finally { Pop-Location }
 
-$variant = if ($Release) { 'release' } else { 'debug' }
-$apk = Get-ChildItem "$android\app\build\outputs\apk\$variant" -Filter *.apk | Select-Object -First 1
-if (-not $apk) { throw "未找到 APK（$variant）" }
 New-Item -ItemType Directory -Force -Path "$root\out\mobile" | Out-Null
 $version = (Get-Content "$root\mobile\package.json" -Raw | ConvertFrom-Json).version
-$artifact = if ($Release) { "aurora-chat-$version-release.apk" } else { 'aurora-chat-debug.apk' }
-Copy-Item -Force $apk.FullName "$root\out\mobile\$artifact"
-Write-Output "apk: $root\out\mobile\$artifact ($([math]::Round($apk.Length/1MB,1)) MB)"
+$variants = if ($Both) { @('debug', 'release') } elseif ($Release) { @('release') } else { @('debug') }
+foreach ($variant in $variants) {
+  $apk = Get-ChildItem "$android\app\build\outputs\apk\$variant" -Filter *.apk | Select-Object -First 1
+  if (-not $apk) { throw "未找到 APK（$variant）" }
+  $artifact = if ($variant -eq 'release') { "aurora-chat-$version-release.apk" } else { 'aurora-chat-debug.apk' }
+  Copy-Item -Force $apk.FullName "$root\out\mobile\$artifact"
+  Write-Output "apk: $root\out\mobile\$artifact ($([math]::Round($apk.Length/1MB,1)) MB)"
+}
 
 
 

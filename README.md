@@ -49,8 +49,8 @@ pwsh -File scripts\build-mobile.ps1    # 3. 移动：out\mobile\aurora-chat-debu
 
 ## 许可
 
-- 上游界面与 `web/`：MIT，版权归 `deepseek-ai/chat-demo` 作者；根目录 `LICENSE-UPSTREAM` 保存上游许可副本，构建时随 `dist/LICENSE` 打进 asar / APK assets，并在桌面包内以 `LICENSE.chat-demo.txt` 分发。
-- 本壳层代码：MIT，见根目录 `LICENSE`。
+- 本项目（壳层与修改）：MIT，版权归 Qeggs / Aurora Chat contributors，见根目录 `LICENSE`；web 仓库的 `LICENSE` 同样是本项目许可。
+- 上游界面 `web/`（基于 `deepseek-ai/chat-demo`）：MIT，版权归 DeepSeek；其许可原文保存在根目录与 web 仓库的 `LICENSE-UPSTREAM`，构建时随 `dist/LICENSE-UPSTREAM` 打进 asar / APK，并在桌面包内以 `LICENSE.chat-demo.txt` 分发。
 - Electron / Chromium / Capacitor / 前端依赖的第三方声明见 `NOTICE.md`；分发时务必保留 `LICENSES.chromium.html` 与 `LICENSE.electron.txt`。
 - 本项目是**社区客户端**（基于 chat-demo 修改与扩展），属于非官方项目，未获 DeepSeek 背书；包标识使用中性的 `com.aurorachat.app`。
 

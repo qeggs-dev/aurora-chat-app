@@ -1,60 +1,99 @@
-# 打 Electron 桌面包（unpacked + zip），并附带许可文件
+# 并行打 Windows（NSIS 安装器 + 便携 zip）与 Linux（AppImage / deb / tar.gz）
+# 一次 electron-builder 调用产出同平台全部目标，Windows 与 Linux 两个进程并行，避免多次全量重打包。
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$desktop = "$root\desktop"
+$startedAt = Get-Date
+
 $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
+$env:ELECTRON_BUILDER_BINARIES_MIRROR = 'https://npmmirror.com/mirrors/electron-builder-binaries/'
 
 Get-Process 'Aurora Chat' -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
 
-Push-Location "$root\desktop"
+Push-Location $desktop
 try {
   pnpm install
-  if (Test-Path "$root\desktop\dist") { Remove-Item -Recurse -Force "$root\desktop\dist" }
-  Copy-Item -Recurse "$root\web\dist" "$root\desktop\dist"
-  # 输出到独立目录：旧 win-unpacked 的 app.asar 可能被宿主进程占用，直接原地重建会 EBUSY
-  # 清掉旧输出；被占用时重试，仍失败就换一个全新目录，避免 electron-builder 往残缺目录里写
-  $outDir = "$root\out\desktop-build"
-  for ($i = 0; $i -lt 5 -and (Test-Path $outDir); $i++) {
-    Remove-Item -Recurse -Force $outDir -ErrorAction SilentlyContinue
-    if (Test-Path $outDir) { Start-Sleep -Milliseconds 800 }
-  }
-  if (Test-Path $outDir) { $outDir = "$root\out\desktop-build-" + (Get-Date -Format 'yyyyMMdd-HHmmss') }
-  pnpm exec electron-builder --win --dir --config electron-builder.yml --config.directories.output=$outDir
-  $global:desktopOutDir = $outDir
+  if (Test-Path "$desktop\dist") { Remove-Item -Recurse -Force "$desktop\dist" }
+  Copy-Item -Recurse "$root\web\dist" "$desktop\dist"
 } finally { Pop-Location }
 
-$pkg = "$global:desktopOutDir\win-unpacked"
-if (-not (Test-Path $pkg)) { throw "未找到打包目录: $pkg" }
-# 完整性校验：必须有 exe 且文件数正常，否则说明 electron-builder 中途失败，不能压缩残缺目录
-$exe = Get-ChildItem $pkg -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-$fileCount = (Get-ChildItem $pkg -Recurse -File | Measure-Object).Count
-if (-not $exe -or $fileCount -lt 20) {
-  throw "桌面打包不完整：$pkg（exe=$([bool]$exe)，files=$fileCount）。请检查 electron-builder 输出/文件占用后重试。"
+$winOut = "$root\out\desktop-win"
+$linuxOut = "$root\out\desktop-linux"
+foreach ($dir in @($winOut, $linuxOut)) {
+  if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
 }
 
-# 许可与声明随分发物走：本壳 LICENSE、NOTICE 与上游 LICENSE-UPSTREAM
-Copy-Item -Force "$root\LICENSE" $pkg
-Copy-Item -Force "$root\NOTICE.md" $pkg
-# 上游 chat-demo 的 MIT 许可：根目录 LICENSE-UPSTREAM 是唯一副本
-Copy-Item -Force "$root\LICENSE-UPSTREAM" "$pkg\LICENSE.chat-demo.txt"
+$winJob = Start-Job -ScriptBlock {
+  param($desktop, $out)
+  $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
+  $env:ELECTRON_BUILDER_BINARIES_MIRROR = 'https://npmmirror.com/mirrors/electron-builder-binaries/'
+  Set-Location $desktop
+  pnpm exec electron-builder --win nsis zip --x64 --config electron-builder.yml --config.directories.output=$out 2>&1 | Out-String
+} -ArgumentList $desktop, $winOut
 
-# 尽量把最新产物同步回 out/desktop/win-unpacked（供本地启动/调试）；被锁时只警告
+$linuxJob = Start-Job -ScriptBlock {
+  param($desktop, $out)
+  $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
+  $env:ELECTRON_BUILDER_BINARIES_MIRROR = 'https://npmmirror.com/mirrors/electron-builder-binaries/'
+  Set-Location $desktop
+  pnpm exec electron-builder --linux AppImage deb tar.gz --x64 --config electron-builder.yml --config.directories.output=$out 2>&1 | Out-String
+} -ArgumentList $desktop, $linuxOut
+
+Write-Output "parallel builds started: windows(nsis+zip) + linux(appimage+deb+tar.gz)"
+Wait-Job $winJob, $linuxJob | Out-Null
+
+foreach ($job in @(@{ Name = 'windows'; Job = $winJob }, @{ Name = 'linux'; Job = $linuxJob })) {
+  $name = $job.Name
+  $j = $job.Job
+  $log = Receive-Job $j -Keep 2>&1 | Out-String
+  $tail = ($log -split "`n" | Where-Object { $_.Trim() } | Select-Object -Last 6) -join "`n"
+  if ($j.State -eq 'Failed') {
+    throw "$name 打包失败：`n$tail"
+  }
+  Write-Output "--- $name build output (tail) ---"
+  Write-Output $tail
+  Remove-Job $j -Force
+}
+
+# 校验并收集 Windows 产物
+$installer = Get-ChildItem $winOut -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+$winZip = Get-ChildItem $winOut -Filter '*.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
+$winUnpacked = "$winOut\win-unpacked"
+if (-not $winZip) { throw "Windows 便携 zip 未生成（$winOut）" }
+$exe = Get-ChildItem $winUnpacked -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+$fileCount = (Get-ChildItem $winUnpacked -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
+if (-not $exe -or $fileCount -lt 20) { throw "win-unpacked 不完整：exe=$([bool]$exe) files=$fileCount" }
+
+foreach ($file in @($installer, $winZip)) {
+  if ($file) {
+    Copy-Item -Force $file.FullName "$root\out\$($file.Name)"
+    Write-Output "windows: $root\out\$($file.Name) ($([math]::Round($file.Length/1MB,1)) MB)"
+  }
+}
+if (-not $installer) { Write-Warning 'Windows NSIS 安装器未生成（检查 NSIS 下载与网络）' }
+
+# 刷新 out/desktop/win-unpacked 供本地启动调试
 $stablePkg = "$root\out\desktop\win-unpacked"
 $oldDesktop = "$root\out\desktop"
 if (Test-Path $oldDesktop) { Remove-Item -Recurse -Force $oldDesktop -ErrorAction SilentlyContinue }
 New-Item -ItemType Directory -Force -Path $stablePkg | Out-Null
 try {
-  # 复制内容而不是复制目录本身：旧目录删不掉时也不会套出 win-unpacked\win-unpacked
-  Copy-Item -Recurse -Force "$pkg\*" $stablePkg -ErrorAction Stop
+  Copy-Item -Recurse -Force "$winUnpacked\*" $stablePkg -ErrorAction Stop
   Write-Output "win-unpacked: $stablePkg"
 } catch {
-  Write-Warning "无法刷新 out/desktop/win-unpacked（文件被占用），本次产物在 $pkg"
+  Write-Warning "无法刷新 out/desktop/win-unpacked（文件被占用），本次产物在 $winUnpacked"
 }
 
-$version = (Get-Content "$root\desktop\package.json" -Raw | ConvertFrom-Json).version
-$zip = "$root\out\aurora-chat-desktop-$version-win-x64.zip"
-if (Test-Path $zip) { Remove-Item -Force $zip }
-Compress-Archive -Path "$pkg\*" -DestinationPath $zip -CompressionLevel Optimal
-Write-Output "desktop package: $pkg"
-Write-Output "zip: $zip ($([math]::Round((Get-Item $zip).Length/1MB,1)) MB)"
+# 校验并收集 Linux 产物
+$linuxFiles = Get-ChildItem $linuxOut -File -ErrorAction SilentlyContinue | Where-Object {
+  $_.Extension -in '.AppImage', '.deb', '.gz'
+}
+if (-not $linuxFiles) { throw "Linux 产物未生成（$linuxOut）" }
+foreach ($file in $linuxFiles) {
+  Copy-Item -Force $file.FullName "$root\out\$($file.Name)"
+  Write-Output "linux: $root\out\$($file.Name) ($([math]::Round($file.Length/1MB,1)) MB)"
+}
 
+$elapsed = [math]::Round(((Get-Date) - $startedAt).TotalSeconds, 1)
+Write-Output "build-desktop done in ${elapsed}s (windows + linux in parallel)"

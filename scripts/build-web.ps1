@@ -20,4 +20,5 @@ foreach ($dst in @("$root\desktop\dist", "$root\mobile\www")) {
   Copy-Item -Recurse "$root\web\dist" $dst
 }
 Copy-Item -Force "$root\assets\brand\aurora-48.png" "$root\web\dist\favicon.png"
+Copy-Item -Force "$root\web\LICENSE-UPSTREAM" "$root\web\dist\LICENSE-UPSTREAM"
 Write-Output "web dist -> desktop\dist, mobile\www"

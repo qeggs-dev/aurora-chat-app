@@ -892,13 +892,14 @@ const auroraCoverPng = (theme = 'dark', width = AURORA_COVER_WIDTH) => {
  * ----------------------------------------------------------------
  * 统一规范（完整版见 tools/style-fixture/README.md）：
  * 1) 画布：96×96 逻辑像素；导出 192×192（2x）透明底 PNG，高分屏下按 24/16px 显示
- *    仍有余量。主体可见包围盒约 68–78%，四周留 10–14 逻辑像素。
+ *    仍有余量。主体可见包围盒约 69–80%，四周留 10–14 逻辑像素。
  * 2) 笔画：统一 7/96 线宽（≈1.75px@24、1.17px@16），圆头端点、圆角转折；
  *    不出现 <5/96 的细线，也不缩细节到 24px 看不清（宁可简化造型）。
  * 3) 配色：亮色主笔画 #16233f，深色 #e9f3ff。点缀色为青蓝→紫极光渐变
  *    （暗色 #6ed0ff→#c096ff；亮色用加深版 #0f8ed6→#7a4fd8 保证浅底 ≥3:1 对比度），
  *    每枚图标最多用在一处关键细节（渐变方向统一为「左下青蓝 → 右上紫」）。
- * 4) 造型：线性描边为主 + 少量语义化实心填充（stop / menu / thinking / 月亮 / 侧栏左栏）；
+ * 4) 造型：**全部描边（outline），不允许大面积实心填充块**；唯一允许的实心是
+ *    「端点圆点」（直径 ≤ 2×线宽，如 menu 的三点、状态提示光点、调色板色点）。
  *    同类元素（箭头、面板、圆角矩形、声音）共用同一线宽与转角半径（面板类 12–16）。
  * 5) 绘制：全部解析式 SDF/距离场光栅化（距离 → 1px 覆盖率抗锯齿），
  *    固定几何、无随机数、无绘图库；同一逻辑坐标可直接放大到 192。
@@ -1085,36 +1086,6 @@ const iconPainter = (variant) => {
     flush(color)
   }
 
-  /** 实心圆角矩形（可旋转，角度为度） */
-  const fillRoundRect = (x, y, width, height, radius, color = ink, angleDeg = 0) => {
-    const centerX = (x + width / 2) * ICON_SCALE
-    const centerY = (y + height / 2) * ICON_SCALE
-    const reach = (Math.hypot(width, height) / 2) * ICON_SCALE + 2
-    const x0 = Math.max(0, Math.floor(centerX - reach))
-    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerX + reach))
-    const y0 = Math.max(0, Math.floor(centerY - reach))
-    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerY + reach))
-    for (let py = y0; py <= y1; py += 1) {
-      for (let px = x0; px <= x1; px += 1) {
-        const sdf = iconRoundRectSdf(
-          px + 0.5,
-          py + 0.5,
-          centerX,
-          centerY,
-          width * ICON_SCALE,
-          height * ICON_SCALE,
-          radius * ICON_SCALE,
-          angleDeg,
-        )
-        const amount = clamp01(0.5 - sdf)
-        if (amount > 0) {
-          addCoverage(px, py, amount)
-        }
-      }
-    }
-    flush(color)
-  }
-
   /** 圆角矩形描边（可旋转）：到边界的有符号距离落在半线宽内即覆盖 */
   const strokeRoundRect = (x, y, width, height, radius, color = ink, angleDeg = 0, lineWidth = ICON_STROKE) => {
     const half = (lineWidth * ICON_SCALE) / 2
@@ -1204,88 +1175,13 @@ const iconPainter = (variant) => {
     stroke(points, color, lineWidth)
   }
 
-  /** 实心多边形（星芒等）：射线判定内外 + 到边距离做 1px 抗锯齿 */
-  const fillPolygon = (points, color = ink) => {
-    const pts = points.map(([x, y]) => [x * ICON_SCALE, y * ICON_SCALE])
-    let minX = Infinity
-    let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
-    for (const [x, y] of pts) {
-      minX = Math.min(minX, x)
-      minY = Math.min(minY, y)
-      maxX = Math.max(maxX, x)
-      maxY = Math.max(maxY, y)
-    }
-    const x0 = Math.max(0, Math.floor(minX - 1))
-    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(maxX + 1))
-    const y0 = Math.max(0, Math.floor(minY - 1))
-    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(maxY + 1))
-    for (let py = y0; py <= y1; py += 1) {
-      const y = py + 0.5
-      for (let px = x0; px <= x1; px += 1) {
-        const x = px + 0.5
-        let inside = false
-        let best = Infinity
-        for (let i = 0, j = pts.length - 1; i < pts.length; j = i, i += 1) {
-          const [xi, yi] = pts[i]
-          const [xj, yj] = pts[j]
-          if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
-            inside = !inside
-          }
-          const d = iconSegmentDistance(x, y, xi, yi, xj, yj)
-          if (d < best) {
-            best = d
-          }
-        }
-        const amount = inside ? clamp01(0.5 + best) : clamp01(0.5 - best)
-        if (amount > 0) {
-          addCoverage(px, py, amount)
-        }
-      }
-    }
-    flush(color)
-  }
-
-  /** 实心月牙：大圆挖去偏移圆（两者都带 1px 抗锯齿） */
-  const fillCrescent = (cx, cy, radius, cutCx, cutCy, cutRadius, color = ink) => {
-    const centerX = cx * ICON_SCALE
-    const centerY = cy * ICON_SCALE
-    const r = radius * ICON_SCALE
-    const cux = cutCx * ICON_SCALE
-    const cuy = cutCy * ICON_SCALE
-    const cr = cutRadius * ICON_SCALE
-    const x0 = Math.max(0, Math.floor(centerX - r - 1))
-    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerX + r + 1))
-    const y0 = Math.max(0, Math.floor(centerY - r - 1))
-    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerY + r + 1))
-    for (let py = y0; py <= y1; py += 1) {
-      for (let px = x0; px <= x1; px += 1) {
-        const dx = px + 0.5 - centerX
-        const dy = py + 0.5 - centerY
-        const ux = px + 0.5 - cux
-        const uy = py + 0.5 - cuy
-        const big = clamp01(r + 0.5 - Math.sqrt(dx * dx + dy * dy))
-        const cut = clamp01(cr + 0.5 - Math.sqrt(ux * ux + uy * uy))
-        const amount = big * clamp01(1 - cut)
-        if (amount > 0) {
-          addCoverage(px, py, amount)
-        }
-      }
-    }
-    flush(color)
-  }
-
   return {
     ink,
     accent,
     stroke,
     fillCircle,
-    fillRoundRect,
     strokeRoundRect,
     strokeArc,
-    fillPolygon,
-    fillCrescent,
     finish: () => canvas.data,
   }
 }
@@ -1307,22 +1203,22 @@ const ICON_GLYPHS = {
     p.stroke([[52, 48], [74, 48]], p.accent)
     p.stroke([[64, 38], [74, 48], [64, 58]], p.accent)
   },
-  // 收起侧栏：圆角面板 + 左栏实心渐变（点缀）+ 分隔线
+  // 收起侧栏：圆角面板 + 分隔线 + 指向面板外的左箭头（点缀 = 箭头）；与 enter_sidebar 镜像成对
   exit_sidebar: (p) => {
-    p.fillRoundRect(14, 22, 30, 52, 12, p.accent)
     p.strokeRoundRect(14, 22, 68, 52, 12, p.ink)
     p.stroke([[44, 22], [44, 74]], p.ink)
+    p.stroke([[76, 48], [54, 48]], p.accent)
+    p.stroke([[64, 38], [54, 48], [64, 58]], p.accent)
   },
-  // 深度思考：实心四角星芒（圆角转折）+ 星点（点缀）
+  // 深度思考：四角星芒描边（中心留空）+ 星点（点缀；小圆点直径 13 < 2×线宽，属端点圆点）
   thinking: (p) => {
     const points = []
     for (let i = 0; i < 8; i += 1) {
       const angle = -Math.PI / 2 + (i * Math.PI) / 4
-      const radius = i % 2 === 0 ? 33 : 11
+      const radius = i % 2 === 0 ? 33 : 14
       points.push([44 + radius * Math.cos(angle), 48 + radius * Math.sin(angle)])
     }
-    p.fillPolygon(points, p.ink)
-    p.stroke([...points, points[0]], p.ink, 6)
+    p.stroke([...points, points[0]], p.ink)
     p.fillCircle(74, 24, 6.5, p.accent)
   },
   // 联网搜索：地球（圆 + 赤道 + 经线）；经线点缀
@@ -1367,7 +1263,7 @@ const ICON_GLYPHS = {
     p.stroke(points, p.ink)
     p.stroke(points.slice(-2), p.accent)
   },
-  // 编辑：斜置铅笔（笔身圆角矩形 + 笔尖实心三角（点缀）+ 笔帽线）
+  // 编辑：斜置铅笔（笔身圆角矩形 + 笔尖三角描边（点缀）+ 笔帽线）
   edit: (p) => {
     const angle = -45
     const u = [Math.cos((angle * Math.PI) / 180), Math.sin((angle * Math.PI) / 180)]
@@ -1386,20 +1282,18 @@ const ICON_GLYPHS = {
       p.ink,
     )
     const tip = [bottomEnd[0] - u[0] * 16, bottomEnd[1] - u[1] * 16]
-    p.fillPolygon(
-      [
-        [bottomEnd[0] + v[0] * halfThickness, bottomEnd[1] + v[1] * halfThickness],
-        [bottomEnd[0] - v[0] * halfThickness, bottomEnd[1] - v[1] * halfThickness],
-        tip,
-      ],
-      p.accent,
-    )
+    const tipTriangle = [
+      [bottomEnd[0] + v[0] * halfThickness, bottomEnd[1] + v[1] * halfThickness],
+      [bottomEnd[0] - v[0] * halfThickness, bottomEnd[1] - v[1] * halfThickness],
+      tip,
+    ]
+    p.stroke([...tipTriangle, tipTriangle[0]], p.accent)
   },
-  // 更多操作：三个实心圆点；中点点缀
+  // 更多操作：三个实心圆点（端点圆点，直径 14 = 2×线宽，非填充块）；中点点缀
   menu: (p) => {
-    p.fillCircle(22, 48, 7.5, p.ink)
-    p.fillCircle(48, 48, 7.5, p.accent)
-    p.fillCircle(74, 48, 7.5, p.ink)
+    p.fillCircle(22, 48, 7, p.ink)
+    p.fillCircle(48, 48, 7, p.accent)
+    p.fillCircle(74, 48, 7, p.ink)
   },
   // 删除：垃圾桶（提手 + 桶盖（点缀）+ 桶身）
   delete: (p) => {
@@ -1412,7 +1306,7 @@ const ICON_GLYPHS = {
     p.stroke([[66, 20], [20, 20], [20, 66]], p.accent)
     p.strokeRoundRect(36, 34, 46, 46, 10, p.ink)
   },
-  // 重新生成：顺时针开口圆弧 + 实心箭头（点缀，位于弧线末端、沿切线指向缺口）
+  // 重新生成：顺时针开口圆弧 + 箭头（开叉描边，点缀；位于弧线末端并沿切线指向缺口）
   regen: (p) => {
     const centerX = 48
     const centerY = 50
@@ -1422,11 +1316,11 @@ const ICON_GLYPHS = {
     const tip = [centerX + radius * Math.cos(endAngle), centerY + radius * Math.sin(endAngle)]
     const tangent = [-Math.sin(endAngle), Math.cos(endAngle)]
     const normal = [-tangent[1], tangent[0]]
-    p.fillPolygon(
+    p.stroke(
       [
+        [tip[0] - tangent[0] * 16 + normal[0] * 9, tip[1] - tangent[1] * 16 + normal[1] * 9],
         tip,
-        [tip[0] - tangent[0] * 15 + normal[0] * 9, tip[1] - tangent[1] * 15 + normal[1] * 9],
-        [tip[0] - tangent[0] * 15 - normal[0] * 9, tip[1] - tangent[1] * 15 - normal[1] * 9],
+        [tip[0] - tangent[0] * 16 - normal[0] * 9, tip[1] - tangent[1] * 16 - normal[1] * 9],
       ],
       p.accent,
     )
@@ -1436,9 +1330,9 @@ const ICON_GLYPHS = {
     p.stroke([[48, 80], [48, 32]], p.accent)
     p.stroke([[16, 54], [48, 22], [80, 54]], p.ink)
   },
-  // 停止：实心圆角方块
+  // 停止：圆角方框描边（不再实心）
   stop: (p) => {
-    p.fillRoundRect(14, 14, 68, 68, 16, p.ink)
+    p.strokeRoundRect(14, 14, 68, 68, 16, p.ink)
   },
   // 上一个版本：左 chevron
   left_arrow: (p) => {
@@ -1448,14 +1342,16 @@ const ICON_GLYPHS = {
   right_arrow: (p) => {
     p.stroke([[24, 16], [70, 48], [24, 80]], p.ink)
   },
-  // 设置（通用）：三行滑杆；中间滑块点缀
+  // 设置（通用）：三行滑杆 + 竖向短柄（「tune」式滑块，纯描边；中间短柄点缀）
   'setting.setting': (p) => {
-    for (const y of [28, 48, 68]) {
+    for (const [y, knobX, knobColor] of [
+      [28, 60, p.ink],
+      [48, 34, p.accent],
+      [68, 62, p.ink],
+    ]) {
       p.stroke([[16, y], [80, y]], p.ink)
+      p.stroke([[knobX, y - 8], [knobX, y + 8]], knobColor)
     }
-    p.fillCircle(60, 28, 8, p.ink)
-    p.fillCircle(34, 48, 8, p.accent)
-    p.fillCircle(62, 68, 8, p.ink)
   },
   // 浅色主题：太阳（圆心描边 + 8 条光芒（点缀））
   'setting.light': (p) => {
@@ -1471,10 +1367,67 @@ const ICON_GLYPHS = {
       )
     }
   },
-  // 深色主题：实心月牙 + 星点（点缀）
+  // 深色主题：月牙描边（大圆弧 + 挖除圆弧在两个交点相接）+ 星点（点缀）
   'setting.dark': (p) => {
-    p.fillCrescent(42, 46, 33, 58, 32, 28, p.ink)
-    p.fillCircle(72, 24, 7, p.accent)
+    const bigCenter = [42, 46]
+    const bigRadius = 31
+    const cutCenter = [57, 32]
+    const cutRadius = 26
+    const dx = cutCenter[0] - bigCenter[0]
+    const dy = cutCenter[1] - bigCenter[1]
+    const distance = Math.hypot(dx, dy)
+    const along = (bigRadius * bigRadius - cutRadius * cutRadius + distance * distance) / (2 * distance)
+    const across = Math.sqrt(Math.max(0, bigRadius * bigRadius - along * along))
+    const mid = [bigCenter[0] + (along * dx) / distance, bigCenter[1] + (along * dy) / distance]
+    const perp = [-dy / distance, dx / distance]
+    const point1 = [mid[0] + across * perp[0], mid[1] + across * perp[1]]
+    const point2 = [mid[0] - across * perp[0], mid[1] - across * perp[1]]
+    const angleOf = (center, point) => (Math.atan2(point[1] - center[1], point[0] - center[0]) * 180) / Math.PI
+    const arcPoints = (center, radius, startDeg, endDeg, samples = 48) => {
+      const sweep = (((endDeg - startDeg) % 360) + 360) % 360
+      const points = []
+      for (let i = 0; i <= samples; i += 1) {
+        const angle = ((startDeg + (sweep * i) / samples) * Math.PI) / 180
+        points.push([center[0] + radius * Math.cos(angle), center[1] + radius * Math.sin(angle)])
+      }
+      return points
+    }
+    const arcMidPoint = (center, radius, startDeg, endDeg) => {
+      const sweep = (((endDeg - startDeg) % 360) + 360) % 360
+      const angle = ((startDeg + sweep / 2) * Math.PI) / 180
+      return [center[0] + radius * Math.cos(angle), center[1] + radius * Math.sin(angle)]
+    }
+    const chooseArc = (center, radius, from, to, predicate) => {
+      if (predicate(arcMidPoint(center, radius, from, to))) return [from, to]
+      if (predicate(arcMidPoint(center, radius, to, from))) return [to, from]
+      return [from, to]
+    }
+    const bigStart = angleOf(bigCenter, point1)
+    const bigEnd = angleOf(bigCenter, point2)
+    const [from, to] = chooseArc(
+      bigCenter,
+      bigRadius,
+      bigStart,
+      bigEnd,
+      (point) => Math.hypot(point[0] - cutCenter[0], point[1] - cutCenter[1]) > cutRadius,
+    )
+    const cutFrom = angleOf(cutCenter, point1)
+    const cutTo = angleOf(cutCenter, point2)
+    const [cutStart, cutEnd] = chooseArc(
+      cutCenter,
+      cutRadius,
+      cutFrom,
+      cutTo,
+      (point) => Math.hypot(point[0] - bigCenter[0], point[1] - bigCenter[1]) < bigRadius,
+    )
+    const bigArc = arcPoints(bigCenter, bigRadius, from, to)
+    let cutArc = arcPoints(cutCenter, cutRadius, cutStart, cutEnd)
+    const endPoint = bigArc[bigArc.length - 1]
+    const toStart = Math.hypot(cutArc[0][0] - endPoint[0], cutArc[0][1] - endPoint[1])
+    const toEnd = Math.hypot(cutArc[cutArc.length - 1][0] - endPoint[0], cutArc[cutArc.length - 1][1] - endPoint[1])
+    if (toEnd < toStart) cutArc = cutArc.reverse()
+    p.stroke([...bigArc, ...cutArc], p.ink)
+    p.fillCircle(74, 22, 6.5, p.accent)
   },
   // 设备：显示器 + 底座；底座横杆点缀
   'setting.device': (p) => {
@@ -1501,16 +1454,16 @@ const ICON_GLYPHS = {
     p.stroke([[18, 18], [78, 78]], p.ink)
     p.stroke([[78, 18], [18, 78]], p.ink)
   },
-  // 移除（附件 / 文件卡片上的小 ×）：实心交叉，与描边版 close 在 24px 下也能一眼区分
+  // 移除（附件 / 文件卡片）：小一号描边 ×，与弹窗用的大号 close 靠尺寸与上下文区分
   remove: (p) => {
-    p.stroke([[20, 20], [76, 76]], p.ink, 12)
-    p.stroke([[76, 20], [20, 76]], p.ink, 12)
+    p.stroke([[22, 22], [74, 74]], p.ink)
+    p.stroke([[74, 22], [22, 74]], p.ink)
   },
   // 完成 / 已复制：单笔对勾（粗圆头）
   check: (p) => {
     p.stroke([[18, 52], [39, 72], [80, 22]], p.ink)
   },
-  // 刷新 / 重试：双向循环箭头（两段圆弧 + 两枚实心箭头），与单向的 regen 区分
+  // 刷新 / 重试：双向循环箭头（两段圆弧 + 两枚开叉箭头，均描边），与单向的 regen 区分
   refresh: (p) => {
     const centerX = 48
     const centerY = 48
@@ -1520,10 +1473,10 @@ const ICON_GLYPHS = {
       const tip = [centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle)]
       const tangent = [-Math.sin(angle), Math.cos(angle)]
       const normal = [-tangent[1], tangent[0]]
-      p.fillPolygon(
+      p.stroke(
         [
-          tip,
           [tip[0] - tangent[0] * 17 + normal[0] * 10, tip[1] - tangent[1] * 17 + normal[1] * 10],
+          tip,
           [tip[0] - tangent[0] * 17 - normal[0] * 10, tip[1] - tangent[1] * 17 - normal[1] * 10],
         ],
         p.ink,
@@ -1539,10 +1492,10 @@ const ICON_GLYPHS = {
     p.strokeArc(42, 42, 23, 23, -90, 270, p.ink)
     p.stroke([[58, 58], [81, 81]], p.accent)
   },
-  // 警告：圆角三角形 + 感叹号（感叹号 = 点缀）
+  // 警告：圆角三角形 + 感叹号（感叹号 = 点缀；终点圆点直径 9 < 2×线宽）
   warning: (p) => {
     p.stroke([[48, 16], [82, 76], [14, 76], [48, 16]], p.ink)
-    p.stroke([[48, 34], [48, 54]], p.accent, 6)
+    p.stroke([[48, 34], [48, 54]], p.accent)
     p.fillCircle(48, 66, 4.5, p.accent)
   },
   // 链接：两个互相扣住的圆环（链环）；右上环点缀
@@ -1554,14 +1507,13 @@ const ICON_GLYPHS = {
   chevron_down: (p) => {
     p.stroke([[18, 34], [48, 64], [78, 34]], p.ink)
   },
-  // 播放：实心三角（媒体语义的少量填充），圆角转折
+  // 播放：三角描边（内部留空），圆角转折
   play: (p) => {
     const points = [
       [28, 14],
       [84, 48],
       [28, 82],
     ]
-    p.fillPolygon(points, p.ink)
     p.stroke([...points, points[0]], p.ink)
   },
   // 上传：向上箭头 + 托盘；箭杆点缀
@@ -1599,12 +1551,12 @@ const ICON_GLYPHS = {
     p.stroke([[30, 38], [66, 38]], p.ink)
     p.stroke([[30, 54], [56, 54]], p.accent)
   },
-  // 用量统计：基线 + 三根实心柱；中间柱点缀
+  // 用量统计：基线 + 三根柱（圆头描边竖线，中间柱点缀）
   'setting.usage': (p) => {
     p.stroke([[14, 80], [82, 80]], p.ink)
-    p.fillRoundRect(16, 56, 16, 24, 8, p.ink)
-    p.fillRoundRect(40, 40, 16, 40, 8, p.accent)
-    p.fillRoundRect(62, 20, 16, 60, 8, p.ink)
+    p.stroke([[26, 80], [26, 58]], p.ink)
+    p.stroke([[48, 80], [48, 40]], p.accent)
+    p.stroke([[70, 80], [70, 20]], p.ink)
   },
   // 样式（调色板）：圆环 + 四枚色点；左上色点点缀
   'setting.style': (p) => {
@@ -1703,10 +1655,10 @@ const manifest = {
   schema: 1,
   id: 'aurora',
   name: '极光',
-  description: '冷色调示例包：抽象极光背景 + 40 枚统一笔触的双主题线性图标（极光渐变点缀）。',
+  description: '冷色调示例包：抽象极光背景 + 40 枚统一笔触的双主题描边图标（极光渐变点缀）。',
   author: 'Aurora Chat contributors',
-  // 1.2.3：40 个图标槽位 × 亮/暗两套按统一规范重绘，内置包启动时按版本号自动更新
-  version: '1.2.3',
+  // 1.2.4：40 个槽位全部改为描边（outline）风格，内置包启动时按版本号自动更新
+  version: '1.2.4',
   sidebarTitle: 'Aurora Chat',
   // 包图标 / 详情页封面按主题提供；旧的 `{ "file": "…" }` 形式仍是主题无关的兜底
   icon: {

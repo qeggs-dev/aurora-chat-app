@@ -9,11 +9,47 @@ files:
   - dist/**
   - package.json
 asar: true
-compression: maximum
+extraFiles:
+  - from: ../LICENSE
+    to: LICENSE
+  - from: ../NOTICE.md
+    to: NOTICE.md
+  - from: ../LICENSE-UPSTREAM
+    to: LICENSE.chat-demo.txt
+compression: normal
+artifactName: aurora-chat-${version}-${os}-${arch}.${ext}
 win:
   icon: build/icon.png
   target:
-    - target: dir
-  artifactName: aurora-chat-${version}-win-x64.${ext}
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Aurora Chat
+linux:
+  icon: build/icon.png
+  category: Utility
+  maintainer: Qeggs <get_boot@outlook.com>
+  synopsis: Community chat client for the DeepSeek API
+  description: Aurora Chat is a community chat client with style packs, API presets, usage stats and memory. Not affiliated with DeepSeek.
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: tar.gz
+      arch:
+        - x64
+
 
 

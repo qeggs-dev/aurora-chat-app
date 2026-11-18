@@ -1,7 +1,7 @@
 name: Release packages
 
 # Windows / Linux / Android 三平台安装包统一在 CI 构建并附加到 Release。
-# Linux 的 AppImage/deb 与 Windows 的 NSIS 在 Ubuntu/Windows runner 上分别原生构建（本地 Windows 无法交叉出 Linux 包）。
+# app 仓库不包含 web/（独立仓库 aurora-chat-web），因此 web 源码单独 checkout 到 web/。
 on:
   push:
     tags:
@@ -16,14 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: qeggs-dev/aurora-chat-web
+          ref: feature/shell-mods
+          path: web
       - uses: pnpm/action-setup@v4
         with:
           version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
       - name: Build web dist
         run: |
           pnpm --dir web install --frozen-lockfile
@@ -47,8 +50,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: desktop/pnpm-lock.yaml
       - uses: actions/download-artifact@v4
         with:
           name: web-dist
@@ -82,8 +83,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: desktop/pnpm-lock.yaml
       - uses: actions/download-artifact@v4
         with:
           name: web-dist
@@ -121,8 +120,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: mobile/pnpm-lock.yaml
       - uses: actions/download-artifact@v4
         with:
           name: web-dist

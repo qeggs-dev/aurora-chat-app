@@ -12,11 +12,25 @@ try {
   if (Test-Path "$root\desktop\dist") { Remove-Item -Recurse -Force "$root\desktop\dist" }
   Copy-Item -Recurse "$root\web\dist" "$root\desktop\dist"
   # 输出到独立目录：旧 win-unpacked 的 app.asar 可能被宿主进程占用，直接原地重建会 EBUSY
-  pnpm exec electron-builder --win --dir --config electron-builder.yml --config.directories.output=../out/desktop-build
+  # 清掉旧输出；被占用时重试，仍失败就换一个全新目录，避免 electron-builder 往残缺目录里写
+  $outDir = "$root\out\desktop-build"
+  for ($i = 0; $i -lt 5 -and (Test-Path $outDir); $i++) {
+    Remove-Item -Recurse -Force $outDir -ErrorAction SilentlyContinue
+    if (Test-Path $outDir) { Start-Sleep -Milliseconds 800 }
+  }
+  if (Test-Path $outDir) { $outDir = "$root\out\desktop-build-" + (Get-Date -Format 'yyyyMMdd-HHmmss') }
+  pnpm exec electron-builder --win --dir --config electron-builder.yml --config.directories.output=$outDir
+  $global:desktopOutDir = $outDir
 } finally { Pop-Location }
 
-$pkg = "$root\out\desktop-build\win-unpacked"
+$pkg = "$global:desktopOutDir\win-unpacked"
 if (-not (Test-Path $pkg)) { throw "未找到打包目录: $pkg" }
+# 完整性校验：必须有 exe 且文件数正常，否则说明 electron-builder 中途失败，不能压缩残缺目录
+$exe = Get-ChildItem $pkg -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+$fileCount = (Get-ChildItem $pkg -Recurse -File | Measure-Object).Count
+if (-not $exe -or $fileCount -lt 20) {
+  throw "桌面打包不完整：$pkg（exe=$([bool]$exe)，files=$fileCount）。请检查 electron-builder 输出/文件占用后重试。"
+}
 
 # 许可与声明随分发物走：本壳 LICENSE、NOTICE 与上游 LICENSE-UPSTREAM
 Copy-Item -Force "$root\LICENSE" $pkg

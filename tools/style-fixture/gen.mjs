@@ -887,6 +887,759 @@ const auroraCoverPng = (theme = 'dark', width = AURORA_COVER_WIDTH) => {
   return encodePng(width, height, auroraCoverRgba(width, theme), 'up')
 }
 
+/* ================================================================
+ * 样式包图标：40 个语义槽位 × 亮/暗两套（assets/icons/<theme>/<name>.png）
+ * ----------------------------------------------------------------
+ * 统一规范（完整版见 tools/style-fixture/README.md）：
+ * 1) 画布：96×96 逻辑像素；导出 192×192（2x）透明底 PNG，高分屏下按 24/16px 显示
+ *    仍有余量。主体可见包围盒约 68–78%，四周留 10–14 逻辑像素。
+ * 2) 笔画：统一 7/96 线宽（≈1.75px@24、1.17px@16），圆头端点、圆角转折；
+ *    不出现 <5/96 的细线，也不缩细节到 24px 看不清（宁可简化造型）。
+ * 3) 配色：亮色主笔画 #16233f，深色 #e9f3ff。点缀色为青蓝→紫极光渐变
+ *    （暗色 #6ed0ff→#c096ff；亮色用加深版 #0f8ed6→#7a4fd8 保证浅底 ≥3:1 对比度），
+ *    每枚图标最多用在一处关键细节（渐变方向统一为「左下青蓝 → 右上紫」）。
+ * 4) 造型：线性描边为主 + 少量语义化实心填充（stop / menu / thinking / 月亮 / 侧栏左栏）；
+ *    同类元素（箭头、面板、圆角矩形、声音）共用同一线宽与转角半径（面板类 12–16）。
+ * 5) 绘制：全部解析式 SDF/距离场光栅化（距离 → 1px 覆盖率抗锯齿），
+ *    固定几何、无随机数、无绘图库；同一逻辑坐标可直接放大到 192。
+ * ================================================================ */
+const ICON_EXPORT = 192
+const ICON_SCALE = ICON_EXPORT / 96
+const ICON_STROKE = 7
+const ICON_INK = { light: [22, 35, 63], dark: [233, 243, 255] }
+const ICON_ACCENT_STOPS = {
+  light: [
+    [0, [15, 142, 214]],
+    [1, [122, 79, 216]],
+  ],
+  dark: [
+    [0, [110, 208, 255]],
+    [1, [192, 150, 255]],
+  ],
+}
+
+/** 40 个语义槽位（顺序即总览图顺序）；文件名 = 资源 ID 去掉 `icon.` 前缀与主题后缀 */
+const ICON_SLOTS = [
+  'new_session',
+  'enter_sidebar',
+  'exit_sidebar',
+  'thinking',
+  'network',
+  'sound_input',
+  'link_file',
+  'edit',
+  'menu',
+  'delete',
+  'copy',
+  'regen',
+  'send',
+  'stop',
+  'left_arrow',
+  'right_arrow',
+  'setting.setting',
+  'setting.light',
+  'setting.dark',
+  'setting.device',
+  'setting.datas',
+  'setting.about',
+  // 第二轮扩充（P0，18 个）：替换界面里原先直接写死的内置 SVG
+  'close',
+  'remove',
+  'check',
+  'refresh',
+  'search',
+  'warning',
+  'link',
+  'chevron_down',
+  'play',
+  'upload',
+  'download',
+  'add',
+  'back',
+  'mobile_menu',
+  'browse',
+  'setting.usage',
+  'setting.style',
+  'setting.preset',
+]
+
+/** 点到线段的距离（像素坐标） */
+const iconSegmentDistance = (x, y, ax, ay, bx, by) => {
+  const dx = bx - ax
+  const dy = by - ay
+  const lengthSq = dx * dx + dy * dy
+  const t = lengthSq === 0 ? 0 : clamp01(((x - ax) * dx + (y - ay) * dy) / lengthSq)
+  const px = x - (ax + dx * t)
+  const py = y - (ay + dy * t)
+  return Math.sqrt(px * px + py * py)
+}
+
+/** 旋转圆角矩形的有符号距离（传入像素坐标与像素尺寸） */
+const iconRoundRectSdf = (x, y, cx, cy, width, height, radius, angleDeg) => {
+  const angle = (angleDeg * Math.PI) / 180
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const dx = x - cx
+  const dy = y - cy
+  const localX = dx * cos + dy * sin
+  const localY = -dx * sin + dy * cos
+  const qx = Math.abs(localX) - (width / 2 - radius)
+  const qy = Math.abs(localY) - (height / 2 - radius)
+  const outsideX = Math.max(qx, 0)
+  const outsideY = Math.max(qy, 0)
+  return Math.sqrt(outsideX * outsideX + outsideY * outsideY) + Math.min(Math.max(qx, qy), 0) - radius
+}
+
+/**
+ * 图标绘制器：内部维护一张覆盖率缓冲，几何全部用 96 逻辑坐标书写，
+ * 覆盖率达到即按颜色（实色或渐变函数）合成到 RGBA 画布。
+ */
+const iconPainter = (variant) => {
+  const canvas = createCanvas(ICON_EXPORT, ICON_EXPORT)
+  const coverage = new Float32Array(ICON_EXPORT * ICON_EXPORT)
+  const ink = ICON_INK[variant]
+  const accent = (x, y) => {
+    // 统一渐变方向：左下（青蓝）→ 右上（紫）
+    const t = (x + (ICON_EXPORT - 1 - y)) / (2 * (ICON_EXPORT - 1))
+    const [r, g, b] = rampRgb(ICON_ACCENT_STOPS[variant], t)
+    return [Math.round(r), Math.round(g), Math.round(b)]
+  }
+  const addCoverage = (x, y, amount) => {
+    const index = y * ICON_EXPORT + x
+    if (amount > coverage[index]) {
+      coverage[index] = amount
+    }
+  }
+  /** 把当前覆盖率按颜色合成到画布，然后清空缓冲 */
+  const flush = (color) => {
+    for (let y = 0; y < ICON_EXPORT; y += 1) {
+      for (let x = 0; x < ICON_EXPORT; x += 1) {
+        const amount = coverage[y * ICON_EXPORT + x]
+        if (amount <= 0.002) {
+          continue
+        }
+        const rgb = typeof color === 'function' ? color(x, y) : color
+        setPixel(canvas, x, y, [rgb[0], rgb[1], rgb[2], Math.round(clamp01(amount) * 255)])
+      }
+    }
+    coverage.fill(0)
+  }
+
+  /** 折线 / 多边形描边：到线段集合的最小距离决定覆盖率（等价圆头端点 + 圆角转折） */
+  const stroke = (points, color = ink, width = ICON_STROKE) => {
+    const half = (width * ICON_SCALE) / 2
+    const pts = points.map(([x, y]) => [x * ICON_SCALE, y * ICON_SCALE])
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const [x, y] of pts) {
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
+    }
+    const x0 = Math.max(0, Math.floor(minX - half - 1))
+    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(maxX + half + 1))
+    const y0 = Math.max(0, Math.floor(minY - half - 1))
+    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(maxY + half + 1))
+    for (let y = y0; y <= y1; y += 1) {
+      const py = y + 0.5
+      for (let x = x0; x <= x1; x += 1) {
+        const px = x + 0.5
+        let best = Infinity
+        for (let i = 0; i < pts.length - 1; i += 1) {
+          const d = iconSegmentDistance(px, py, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
+          if (d < best) {
+            best = d
+          }
+        }
+        if (best <= half + 0.5) {
+          addCoverage(x, y, clamp01(half + 0.5 - best))
+        }
+      }
+    }
+    flush(color)
+  }
+
+  /** 实心圆 */
+  const fillCircle = (cx, cy, radius, color = ink) => {
+    const centerX = cx * ICON_SCALE
+    const centerY = cy * ICON_SCALE
+    const r = radius * ICON_SCALE
+    const x0 = Math.max(0, Math.floor(centerX - r - 1))
+    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerX + r + 1))
+    const y0 = Math.max(0, Math.floor(centerY - r - 1))
+    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerY + r + 1))
+    for (let y = y0; y <= y1; y += 1) {
+      for (let x = x0; x <= x1; x += 1) {
+        const dx = x + 0.5 - centerX
+        const dy = y + 0.5 - centerY
+        const d = Math.sqrt(dx * dx + dy * dy)
+        const amount = clamp01(r + 0.5 - d)
+        if (amount > 0) {
+          addCoverage(x, y, amount)
+        }
+      }
+    }
+    flush(color)
+  }
+
+  /** 实心圆角矩形（可旋转，角度为度） */
+  const fillRoundRect = (x, y, width, height, radius, color = ink, angleDeg = 0) => {
+    const centerX = (x + width / 2) * ICON_SCALE
+    const centerY = (y + height / 2) * ICON_SCALE
+    const reach = (Math.hypot(width, height) / 2) * ICON_SCALE + 2
+    const x0 = Math.max(0, Math.floor(centerX - reach))
+    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerX + reach))
+    const y0 = Math.max(0, Math.floor(centerY - reach))
+    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerY + reach))
+    for (let py = y0; py <= y1; py += 1) {
+      for (let px = x0; px <= x1; px += 1) {
+        const sdf = iconRoundRectSdf(
+          px + 0.5,
+          py + 0.5,
+          centerX,
+          centerY,
+          width * ICON_SCALE,
+          height * ICON_SCALE,
+          radius * ICON_SCALE,
+          angleDeg,
+        )
+        const amount = clamp01(0.5 - sdf)
+        if (amount > 0) {
+          addCoverage(px, py, amount)
+        }
+      }
+    }
+    flush(color)
+  }
+
+  /** 圆角矩形描边（可旋转）：到边界的有符号距离落在半线宽内即覆盖 */
+  const strokeRoundRect = (x, y, width, height, radius, color = ink, angleDeg = 0, lineWidth = ICON_STROKE) => {
+    const half = (lineWidth * ICON_SCALE) / 2
+    const centerX = (x + width / 2) * ICON_SCALE
+    const centerY = (y + height / 2) * ICON_SCALE
+    const reach = (Math.hypot(width, height) / 2) * ICON_SCALE + half + 2
+    const x0 = Math.max(0, Math.floor(centerX - reach))
+    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerX + reach))
+    const y0 = Math.max(0, Math.floor(centerY - reach))
+    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerY + reach))
+    for (let py = y0; py <= y1; py += 1) {
+      for (let px = x0; px <= x1; px += 1) {
+        const sdf = iconRoundRectSdf(
+          px + 0.5,
+          py + 0.5,
+          centerX,
+          centerY,
+          width * ICON_SCALE,
+          height * ICON_SCALE,
+          radius * ICON_SCALE,
+          angleDeg,
+        )
+        const amount = clamp01(half + 0.5 - Math.abs(sdf))
+        if (amount > 0) {
+          addCoverage(px, py, amount)
+        }
+      }
+    }
+    flush(color)
+  }
+
+  /**
+   * 圆弧描边（度，0=右、90=下）。圆用解析距离（每个像素一次 sqrt），椭圆用密集折线近似；
+   * 分段一律圆头端点，所以缺口两端自然收圆。
+   */
+  const strokeArc = (cx, cy, rx, ry, startDeg, endDeg, color = ink, lineWidth = ICON_STROKE) => {
+    const centerX = cx * ICON_SCALE
+    const centerY = cy * ICON_SCALE
+    const radiusX = rx * ICON_SCALE
+    const radiusY = ry * ICON_SCALE
+    const half = (lineWidth * ICON_SCALE) / 2
+    const sweep = endDeg - startDeg
+    const full = Math.abs(sweep) >= 359.999
+    const reach = Math.max(radiusX, radiusY) + half + 2
+    const x0 = Math.max(0, Math.floor(centerX - reach))
+    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerX + reach))
+    const y0 = Math.max(0, Math.floor(centerY - reach))
+    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerY + reach))
+    const startRad = (startDeg * Math.PI) / 180
+    const endRad = (endDeg * Math.PI) / 180
+    const startPoint = [centerX + radiusX * Math.cos(startRad), centerY + radiusY * Math.sin(startRad)]
+    const endPoint = [centerX + radiusX * Math.cos(endRad), centerY + radiusY * Math.sin(endRad)]
+    const round = Math.abs(radiusX - radiusY) < 0.001
+    if (round) {
+      for (let y = y0; y <= y1; y += 1) {
+        const dy = y + 0.5 - centerY
+        for (let x = x0; x <= x1; x += 1) {
+          const dx = x + 0.5 - centerX
+          const distance = Math.sqrt(dx * dx + dy * dy)
+          let edge = Math.abs(distance - radiusX)
+          if (!full) {
+            let offset = (Math.atan2(dy, dx) * 180) / Math.PI
+            offset = (((offset - startDeg) % 360) + 360) % 360
+            if (sweep >= 0 ? offset > sweep : 360 - offset > -sweep) {
+              // 落在缺口里：取到两个端点的最近距离（圆头端点）
+              const toStart = Math.sqrt((x + 0.5 - startPoint[0]) ** 2 + (y + 0.5 - startPoint[1]) ** 2)
+              const toEnd = Math.sqrt((x + 0.5 - endPoint[0]) ** 2 + (y + 0.5 - endPoint[1]) ** 2)
+              edge = Math.min(toStart, toEnd)
+            }
+          }
+          const amount = clamp01(half + 0.5 - edge)
+          if (amount > 0) {
+            addCoverage(x, y, amount)
+          }
+        }
+      }
+      flush(color)
+      return
+    }
+    // 椭圆：按弧长取样（≈10° 一段）；单段弦高 < 0.3px，肉眼与解析距离一致
+    const samples = Math.max(8, Math.ceil(Math.abs(sweep) / 10))
+    const points = []
+    for (let i = 0; i <= samples; i += 1) {
+      const angle = ((startDeg + (sweep * i) / samples) * Math.PI) / 180
+      points.push([cx + rx * Math.cos(angle), cy + ry * Math.sin(angle)])
+    }
+    stroke(points, color, lineWidth)
+  }
+
+  /** 实心多边形（星芒等）：射线判定内外 + 到边距离做 1px 抗锯齿 */
+  const fillPolygon = (points, color = ink) => {
+    const pts = points.map(([x, y]) => [x * ICON_SCALE, y * ICON_SCALE])
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const [x, y] of pts) {
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
+    }
+    const x0 = Math.max(0, Math.floor(minX - 1))
+    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(maxX + 1))
+    const y0 = Math.max(0, Math.floor(minY - 1))
+    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(maxY + 1))
+    for (let py = y0; py <= y1; py += 1) {
+      const y = py + 0.5
+      for (let px = x0; px <= x1; px += 1) {
+        const x = px + 0.5
+        let inside = false
+        let best = Infinity
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i, i += 1) {
+          const [xi, yi] = pts[i]
+          const [xj, yj] = pts[j]
+          if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+            inside = !inside
+          }
+          const d = iconSegmentDistance(x, y, xi, yi, xj, yj)
+          if (d < best) {
+            best = d
+          }
+        }
+        const amount = inside ? clamp01(0.5 + best) : clamp01(0.5 - best)
+        if (amount > 0) {
+          addCoverage(px, py, amount)
+        }
+      }
+    }
+    flush(color)
+  }
+
+  /** 实心月牙：大圆挖去偏移圆（两者都带 1px 抗锯齿） */
+  const fillCrescent = (cx, cy, radius, cutCx, cutCy, cutRadius, color = ink) => {
+    const centerX = cx * ICON_SCALE
+    const centerY = cy * ICON_SCALE
+    const r = radius * ICON_SCALE
+    const cux = cutCx * ICON_SCALE
+    const cuy = cutCy * ICON_SCALE
+    const cr = cutRadius * ICON_SCALE
+    const x0 = Math.max(0, Math.floor(centerX - r - 1))
+    const x1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerX + r + 1))
+    const y0 = Math.max(0, Math.floor(centerY - r - 1))
+    const y1 = Math.min(ICON_EXPORT - 1, Math.ceil(centerY + r + 1))
+    for (let py = y0; py <= y1; py += 1) {
+      for (let px = x0; px <= x1; px += 1) {
+        const dx = px + 0.5 - centerX
+        const dy = py + 0.5 - centerY
+        const ux = px + 0.5 - cux
+        const uy = py + 0.5 - cuy
+        const big = clamp01(r + 0.5 - Math.sqrt(dx * dx + dy * dy))
+        const cut = clamp01(cr + 0.5 - Math.sqrt(ux * ux + uy * uy))
+        const amount = big * clamp01(1 - cut)
+        if (amount > 0) {
+          addCoverage(px, py, amount)
+        }
+      }
+    }
+    flush(color)
+  }
+
+  return {
+    ink,
+    accent,
+    stroke,
+    fillCircle,
+    fillRoundRect,
+    strokeRoundRect,
+    strokeArc,
+    fillPolygon,
+    fillCrescent,
+    finish: () => canvas.data,
+  }
+}
+
+/**
+ * 40 个图标的造型（全部在 96×96 逻辑坐标里书写）。
+ * 每枚最多一处极光渐变点缀，注释里标出点缀位置。
+ */
+const ICON_GLYPHS = {
+  // 新建会话：加号；竖臂走极光渐变（点缀）
+  new_session: (p) => {
+    p.stroke([[48, 16], [48, 80]], p.accent)
+    p.stroke([[16, 48], [80, 48]], p.ink)
+  },
+  // 展开侧栏：圆角面板 + 分隔线 + 指向面板内的箭头（点缀 = 箭头）；移动端汉堡另见 mobile_menu
+  enter_sidebar: (p) => {
+    p.strokeRoundRect(14, 22, 68, 52, 12, p.ink)
+    p.stroke([[44, 22], [44, 74]], p.ink)
+    p.stroke([[52, 48], [74, 48]], p.accent)
+    p.stroke([[64, 38], [74, 48], [64, 58]], p.accent)
+  },
+  // 收起侧栏：圆角面板 + 左栏实心渐变（点缀）+ 分隔线
+  exit_sidebar: (p) => {
+    p.fillRoundRect(14, 22, 30, 52, 12, p.accent)
+    p.strokeRoundRect(14, 22, 68, 52, 12, p.ink)
+    p.stroke([[44, 22], [44, 74]], p.ink)
+  },
+  // 深度思考：实心四角星芒（圆角转折）+ 星点（点缀）
+  thinking: (p) => {
+    const points = []
+    for (let i = 0; i < 8; i += 1) {
+      const angle = -Math.PI / 2 + (i * Math.PI) / 4
+      const radius = i % 2 === 0 ? 33 : 11
+      points.push([44 + radius * Math.cos(angle), 48 + radius * Math.sin(angle)])
+    }
+    p.fillPolygon(points, p.ink)
+    p.stroke([...points, points[0]], p.ink, 6)
+    p.fillCircle(74, 24, 6.5, p.accent)
+  },
+  // 联网搜索：地球（圆 + 赤道 + 经线）；经线点缀
+  network: (p) => {
+    p.strokeArc(48, 48, 32, 32, -90, 270, p.ink)
+    p.stroke([[16, 48], [80, 48]], p.ink)
+    p.strokeArc(48, 48, 15, 30, -90, 270, p.accent)
+  },
+  // 语音输入：麦克风（胶囊 + 半圆支架 + 立杆/底座）；支架点缀
+  sound_input: (p) => {
+    p.strokeRoundRect(38, 16, 20, 40, 10, p.ink)
+    p.strokeArc(48, 44, 24, 24, 0, 180, p.accent)
+    p.stroke([[48, 68], [48, 80]], p.ink)
+    p.stroke([[36, 80], [60, 80]], p.ink)
+  },
+  // 链接文件：斜置回形针（一段连续折线：外侧长丝 + 两个 U 型弯 + 内侧短丝）；最内侧短丝点缀
+  link_file: (p) => {
+    // 经典回形针路径（24 单位坐标）等比放大到 96 画布：4 条平行丝间距约 20，
+    // 即使缩到 16px 也有 ~1.5px 的空隙，不会糊成一块。
+    const scale = 3.39
+    const offsetX = 48 - 12.6 * scale
+    const offsetY = 48 - 11.4 * scale
+    const map = (x, y) => [x * scale + offsetX, y * scale + offsetY]
+    const arc = (centerX, centerY, radius, startDeg, endDeg, samples = 18) => {
+      const points = []
+      for (let i = 0; i <= samples; i += 1) {
+        const angle = ((startDeg + ((endDeg - startDeg) * i) / samples) * Math.PI) / 180
+        points.push(map(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle)))
+      }
+      return points
+    }
+    const points = [
+      map(21.44, 11.05),
+      map(12.25, 20.24),
+      ...arc(8, 16, 6, 45, 225),
+      map(12.95, 2.56),
+      ...arc(15.78, 5.39, 4, 225, 405),
+      map(9.41, 17.41),
+      ...arc(8, 16, 2, 45, 225),
+      map(15.07, 6.1),
+    ]
+    p.stroke(points, p.ink)
+    p.stroke(points.slice(-2), p.accent)
+  },
+  // 编辑：斜置铅笔（笔身圆角矩形 + 笔尖实心三角（点缀）+ 笔帽线）
+  edit: (p) => {
+    const angle = -45
+    const u = [Math.cos((angle * Math.PI) / 180), Math.sin((angle * Math.PI) / 180)]
+    const v = [-u[1], u[0]]
+    const center = [47, 47]
+    const halfLength = 30
+    const halfThickness = 13.5
+    const topEnd = [center[0] + u[0] * halfLength, center[1] + u[1] * halfLength]
+    const bottomEnd = [center[0] - u[0] * halfLength, center[1] - u[1] * halfLength]
+    p.strokeRoundRect(center[0] - halfLength, center[1] - halfThickness, halfLength * 2, halfThickness * 2, 6, p.ink, angle)
+    p.stroke(
+      [
+        [topEnd[0] + v[0] * halfThickness, topEnd[1] + v[1] * halfThickness],
+        [topEnd[0] - v[0] * halfThickness, topEnd[1] - v[1] * halfThickness],
+      ],
+      p.ink,
+    )
+    const tip = [bottomEnd[0] - u[0] * 16, bottomEnd[1] - u[1] * 16]
+    p.fillPolygon(
+      [
+        [bottomEnd[0] + v[0] * halfThickness, bottomEnd[1] + v[1] * halfThickness],
+        [bottomEnd[0] - v[0] * halfThickness, bottomEnd[1] - v[1] * halfThickness],
+        tip,
+      ],
+      p.accent,
+    )
+  },
+  // 更多操作：三个实心圆点；中点点缀
+  menu: (p) => {
+    p.fillCircle(22, 48, 7.5, p.ink)
+    p.fillCircle(48, 48, 7.5, p.accent)
+    p.fillCircle(74, 48, 7.5, p.ink)
+  },
+  // 删除：垃圾桶（提手 + 桶盖（点缀）+ 桶身）
+  delete: (p) => {
+    p.stroke([[38, 24], [38, 18], [58, 18], [58, 24]], p.ink)
+    p.stroke([[18, 30], [78, 30]], p.accent)
+    p.strokeRoundRect(26, 42, 44, 38, 10, p.ink)
+  },
+  // 复制：后纸只画可见的 L 形边（点缀），前纸完整圆角描边
+  copy: (p) => {
+    p.stroke([[66, 20], [20, 20], [20, 66]], p.accent)
+    p.strokeRoundRect(36, 34, 46, 46, 10, p.ink)
+  },
+  // 重新生成：顺时针开口圆弧 + 实心箭头（点缀，位于弧线末端、沿切线指向缺口）
+  regen: (p) => {
+    const centerX = 48
+    const centerY = 50
+    const radius = 28
+    p.strokeArc(centerX, centerY, radius, radius, 20, 320, p.ink)
+    const endAngle = (320 * Math.PI) / 180
+    const tip = [centerX + radius * Math.cos(endAngle), centerY + radius * Math.sin(endAngle)]
+    const tangent = [-Math.sin(endAngle), Math.cos(endAngle)]
+    const normal = [-tangent[1], tangent[0]]
+    p.fillPolygon(
+      [
+        tip,
+        [tip[0] - tangent[0] * 15 + normal[0] * 9, tip[1] - tangent[1] * 15 + normal[1] * 9],
+        [tip[0] - tangent[0] * 15 - normal[0] * 9, tip[1] - tangent[1] * 15 - normal[1] * 9],
+      ],
+      p.accent,
+    )
+  },
+  // 发送：上箭头；箭杆走极光渐变（点缀），箭头保持主笔画色
+  send: (p) => {
+    p.stroke([[48, 80], [48, 32]], p.accent)
+    p.stroke([[16, 54], [48, 22], [80, 54]], p.ink)
+  },
+  // 停止：实心圆角方块
+  stop: (p) => {
+    p.fillRoundRect(14, 14, 68, 68, 16, p.ink)
+  },
+  // 上一个版本：左 chevron
+  left_arrow: (p) => {
+    p.stroke([[72, 16], [26, 48], [72, 80]], p.ink)
+  },
+  // 下一个版本：右 chevron
+  right_arrow: (p) => {
+    p.stroke([[24, 16], [70, 48], [24, 80]], p.ink)
+  },
+  // 设置（通用）：三行滑杆；中间滑块点缀
+  'setting.setting': (p) => {
+    for (const y of [28, 48, 68]) {
+      p.stroke([[16, y], [80, y]], p.ink)
+    }
+    p.fillCircle(60, 28, 8, p.ink)
+    p.fillCircle(34, 48, 8, p.accent)
+    p.fillCircle(62, 68, 8, p.ink)
+  },
+  // 浅色主题：太阳（圆心描边 + 8 条光芒（点缀））
+  'setting.light': (p) => {
+    p.strokeArc(48, 48, 15, 15, -90, 270, p.ink)
+    for (let i = 0; i < 8; i += 1) {
+      const angle = (i * Math.PI) / 4
+      p.stroke(
+        [
+          [48 + 24 * Math.cos(angle), 48 + 24 * Math.sin(angle)],
+          [48 + 32 * Math.cos(angle), 48 + 32 * Math.sin(angle)],
+        ],
+        p.accent,
+      )
+    }
+  },
+  // 深色主题：实心月牙 + 星点（点缀）
+  'setting.dark': (p) => {
+    p.fillCrescent(42, 46, 33, 58, 32, 28, p.ink)
+    p.fillCircle(72, 24, 7, p.accent)
+  },
+  // 设备：显示器 + 底座；底座横杆点缀
+  'setting.device': (p) => {
+    p.strokeRoundRect(14, 18, 68, 44, 10, p.ink)
+    p.stroke([[48, 62], [48, 74]], p.ink)
+    p.stroke([[32, 78], [64, 78]], p.accent)
+  },
+  // 数据：数据库（顶盖（点缀）+ 两侧壁 + 中/底层弧）
+  'setting.datas': (p) => {
+    p.strokeArc(48, 28, 30, 10, -90, 270, p.accent)
+    p.stroke([[18, 28], [18, 66]], p.ink)
+    p.stroke([[78, 28], [78, 66]], p.ink)
+    p.strokeArc(48, 47, 30, 10, 0, 180, p.ink)
+    p.strokeArc(48, 66, 30, 10, 0, 180, p.ink)
+  },
+  // 关于：信息圆 + 感叹号（圆点（点缀）+ 竖杆）
+  'setting.about': (p) => {
+    p.strokeArc(48, 48, 32, 32, -90, 270, p.ink)
+    p.fillCircle(48, 29, 6.5, p.accent)
+    p.stroke([[48, 42], [48, 68]], p.ink)
+  },
+  // 关闭（弹窗 / 搜索面板）：描边交叉，端点与转折全圆头
+  close: (p) => {
+    p.stroke([[18, 18], [78, 78]], p.ink)
+    p.stroke([[78, 18], [18, 78]], p.ink)
+  },
+  // 移除（附件 / 文件卡片上的小 ×）：实心交叉，与描边版 close 在 24px 下也能一眼区分
+  remove: (p) => {
+    p.stroke([[20, 20], [76, 76]], p.ink, 12)
+    p.stroke([[76, 20], [20, 76]], p.ink, 12)
+  },
+  // 完成 / 已复制：单笔对勾（粗圆头）
+  check: (p) => {
+    p.stroke([[18, 52], [39, 72], [80, 22]], p.ink)
+  },
+  // 刷新 / 重试：双向循环箭头（两段圆弧 + 两枚实心箭头），与单向的 regen 区分
+  refresh: (p) => {
+    const centerX = 48
+    const centerY = 48
+    const radius = 30
+    const head = (angleDeg) => {
+      const angle = (angleDeg * Math.PI) / 180
+      const tip = [centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle)]
+      const tangent = [-Math.sin(angle), Math.cos(angle)]
+      const normal = [-tangent[1], tangent[0]]
+      p.fillPolygon(
+        [
+          tip,
+          [tip[0] - tangent[0] * 17 + normal[0] * 10, tip[1] - tangent[1] * 17 + normal[1] * 10],
+          [tip[0] - tangent[0] * 17 - normal[0] * 10, tip[1] - tangent[1] * 17 - normal[1] * 10],
+        ],
+        p.ink,
+      )
+    }
+    p.strokeArc(centerX, centerY, radius, radius, 200, 340, p.ink)
+    p.strokeArc(centerX, centerY, radius, radius, 20, 160, p.ink)
+    head(340)
+    head(160)
+  },
+  // 搜索：放大镜（圆环 + 斜柄）；斜柄点缀
+  search: (p) => {
+    p.strokeArc(42, 42, 23, 23, -90, 270, p.ink)
+    p.stroke([[58, 58], [81, 81]], p.accent)
+  },
+  // 警告：圆角三角形 + 感叹号（感叹号 = 点缀）
+  warning: (p) => {
+    p.stroke([[48, 16], [82, 76], [14, 76], [48, 16]], p.ink)
+    p.stroke([[48, 34], [48, 54]], p.accent, 6)
+    p.fillCircle(48, 66, 4.5, p.accent)
+  },
+  // 链接：两个互相扣住的圆环（链环）；右上环点缀
+  link: (p) => {
+    p.strokeArc(35, 59, 18, 18, -90, 270, p.ink)
+    p.strokeArc(59, 37, 18, 18, -90, 270, p.accent)
+  },
+  // 展开下拉：单 chevron 向下
+  chevron_down: (p) => {
+    p.stroke([[18, 34], [48, 64], [78, 34]], p.ink)
+  },
+  // 播放：实心三角（媒体语义的少量填充），圆角转折
+  play: (p) => {
+    const points = [
+      [28, 14],
+      [84, 48],
+      [28, 82],
+    ]
+    p.fillPolygon(points, p.ink)
+    p.stroke([...points, points[0]], p.ink)
+  },
+  // 上传：向上箭头 + 托盘；箭杆点缀
+  upload: (p) => {
+    p.stroke([[48, 66], [48, 24]], p.accent)
+    p.stroke([[32, 40], [48, 24], [64, 40]], p.ink)
+    p.stroke([[16, 58], [16, 76], [80, 76], [80, 58]], p.ink)
+  },
+  // 下载：向下箭头 + 托盘；箭杆点缀
+  download: (p) => {
+    p.stroke([[48, 20], [48, 56]], p.accent)
+    p.stroke([[32, 40], [48, 56], [64, 40]], p.ink)
+    p.stroke([[16, 62], [16, 80], [80, 80], [80, 62]], p.ink)
+  },
+  // 新增：圆环 + 加号（与 new_session 的纯加号区分）
+  add: (p) => {
+    p.strokeArc(48, 48, 32, 32, -90, 270, p.ink)
+    p.stroke([[32, 48], [64, 48]], p.ink)
+    p.stroke([[48, 32], [48, 64]], p.ink)
+  },
+  // 返回：完整的左箭头（箭杆 + 箭头）；箭杆点缀（与 left_arrow 的单 chevron 区分）
+  back: (p) => {
+    p.stroke([[80, 48], [24, 48]], p.accent)
+    p.stroke([[44, 24], [20, 48], [44, 72]], p.ink)
+  },
+  // 移动端菜单：三条等长横杠；中间一条点缀
+  mobile_menu: (p) => {
+    p.stroke([[16, 28], [80, 28]], p.ink)
+    p.stroke([[16, 48], [80, 48]], p.accent)
+    p.stroke([[16, 68], [80, 68]], p.ink)
+  },
+  // 浏览：圆角文档框 + 两条内容线；第二条内容线点缀
+  browse: (p) => {
+    p.strokeRoundRect(16, 14, 64, 68, 12, p.ink)
+    p.stroke([[30, 38], [66, 38]], p.ink)
+    p.stroke([[30, 54], [56, 54]], p.accent)
+  },
+  // 用量统计：基线 + 三根实心柱；中间柱点缀
+  'setting.usage': (p) => {
+    p.stroke([[14, 80], [82, 80]], p.ink)
+    p.fillRoundRect(16, 56, 16, 24, 8, p.ink)
+    p.fillRoundRect(40, 40, 16, 40, 8, p.accent)
+    p.fillRoundRect(62, 20, 16, 60, 8, p.ink)
+  },
+  // 样式（调色板）：圆环 + 四枚色点；左上色点点缀
+  'setting.style': (p) => {
+    p.strokeArc(48, 48, 32, 32, -90, 270, p.ink)
+    p.fillCircle(34, 38, 6, p.accent)
+    p.fillCircle(48, 30, 6, p.ink)
+    p.fillCircle(62, 38, 6, p.ink)
+    p.fillCircle(56, 58, 6, p.ink)
+  },
+  // 预设：列表行（圆点 + 线）×3；中间一行线点缀（圆点放大到 7，16px 下仍看得见）
+  'setting.preset': (p) => {
+    p.fillCircle(24, 28, 7, p.ink)
+    p.stroke([[40, 28], [80, 28]], p.ink)
+    p.fillCircle(24, 48, 7, p.ink)
+    p.stroke([[40, 48], [66, 48]], p.accent)
+    p.fillCircle(24, 68, 7, p.ink)
+    p.stroke([[40, 68], [76, 68]], p.ink)
+  },
+}
+
+/** 渲染单枚图标，返回 192×192 RGBA 像素 */
+const auroraGlyphRgba = (name, variant = 'dark') => {
+  const draw = ICON_GLYPHS[name]
+  if (!draw) {
+    throw new Error(`unknown icon glyph: ${name}`)
+  }
+  const painter = iconPainter(variant)
+  draw(painter)
+  return painter.finish()
+}
+
+/** 单枚图标 PNG（192×192，透明底） */
+const auroraGlyphPng = (name, variant = 'dark') =>
+  encodePng(ICON_EXPORT, ICON_EXPORT, auroraGlyphRgba(name, variant))
+
 // 示例包直接使用仓库根目录的 LICENSE 模板（MIT），不再自定义版权声明
 const licenseText = readFileSync(join(here, '..', '..', 'LICENSE'), 'utf8')
 
@@ -950,9 +1703,10 @@ const manifest = {
   schema: 1,
   id: 'aurora',
   name: '极光',
-  description: '冷色调示例包：抽象极光背景与几何图标，带视觉特效、裁切缩放与卡片偏转示例。',
+  description: '冷色调示例包：抽象极光背景 + 40 枚统一笔触的双主题线性图标（极光渐变点缀）。',
   author: 'Aurora Chat contributors',
-  version: '1.2.2',
+  // 1.2.3：40 个图标槽位 × 亮/暗两套按统一规范重绘，内置包启动时按版本号自动更新
+  version: '1.2.3',
   sidebarTitle: 'Aurora Chat',
   // 包图标 / 详情页封面按主题提供；旧的 `{ "file": "…" }` 形式仍是主题无关的兜底
   icon: {
@@ -1030,74 +1784,16 @@ const manifest = {
       fit: 'cover',
       align: 'center',
     },
-    'dslike_chat.style_pkg.icon.send.light': {
-      file: 'assets/icons/light/send.png',
-      render: 'auto',
-      effects: {
-        shadow: { x: 0, y: 3, blur: 10, color: '#0b102066' },
-        outerGlow: { radius: 10, color: '#7fd4ff', intensity: 0.8 },
-        stroke: { width: 3, color: '#0b1020' },
-        window: { x1: 0.1, y1: 0.1, x2: 0.9, y2: 0.9 },
-        zoom: 1.25,
-        tilt: { maxAngle: 12, perspective: 700, scale: 1.02 },
-      },
-    },
-    'dslike_chat.style_pkg.icon.new_session.light': {
-      file: 'assets/icons/light/new_session.png',
-      effects: {
-        window: { x1: 0.2, y1: 0.2, x2: 0.8, y2: 0.8 },
-        zoom: 1.2,
-      },
-    },
-    'dslike_chat.style_pkg.icon.new_session.dark': {
-      file: 'assets/icons/dark/new_session.png',
-      effects: {
-        window: { x1: 0.2, y1: 0.2, x2: 0.8, y2: 0.8 },
-        zoom: 1.2,
-      },
-    },
-    'dslike_chat.style_pkg.icon.send.dark': {
-      file: 'assets/icons/dark/send.png',
-      effects: {
-        shadow: { x: 0, y: 3, blur: 10, color: '#00000088' },
-        outerGlow: { radius: 10, color: '#7fd4ff', intensity: 0.9 },
-        stroke: { width: 3, color: '#e6eeff' },
-        window: { x1: 0.1, y1: 0.1, x2: 0.9, y2: 0.9 },
-        zoom: 1.25,
-        tilt: { maxAngle: 12, perspective: 700, scale: 1.02 },
-      },
-    },
-    'dslike_chat.style_pkg.icon.menu.light': {
-      file: 'assets/icons/light/menu.png',
-      effects: {
-        shadow: { x: 0, y: 6, blur: 14, color: '#00000066' },
-        window: { x1: 0.25, y1: 0.3, x2: 0.75, y2: 0.7 },
-        zoom: 1.5,
-      },
-    },
-    'dslike_chat.style_pkg.icon.menu.dark': {
-      file: 'assets/icons/dark/menu.png',
-      effects: {
-        shadow: { x: 0, y: 6, blur: 14, color: '#00000088' },
-        window: { x1: 0.25, y1: 0.3, x2: 0.75, y2: 0.7 },
-        zoom: 1.5,
-      },
-    },
-    'dslike_chat.style_pkg.icon.copy.light': {
-      file: 'assets/icons/light/copy.png',
-      effects: {
-        innerGlow: { radius: 6, color: '#ffffff88', intensity: 0.6 },
-        emboss: { depth: 2, angle: 45, intensity: 0.6 },
-      },
-    },
-    'dslike_chat.style_pkg.icon.copy.dark': {
-      file: 'assets/icons/dark/copy.png',
-      effects: {
-        innerGlow: { radius: 6, color: '#ffffff55', intensity: 0.5 },
-        emboss: { depth: 2, angle: 45, intensity: 0.5 },
-      },
-    },
   },
+}
+
+// 40 个图标槽位 × 亮/暗两套：资源 ID 不变（icon.<slot>.<theme>），文件走 assets/icons/<theme>/<slot>.png
+for (const slot of ICON_SLOTS) {
+  for (const theme of ['light', 'dark']) {
+    manifest.assets[`dslike_chat.style_pkg.icon.${slot}.${theme}`] = {
+      file: `assets/icons/${theme}/${slot}.png`,
+    }
+  }
 }
 
 const auroraFiles = {
@@ -1113,14 +1809,13 @@ const auroraFiles = {
   'assets/dark/main.png': backgroundPng('dark'),
   'assets/dark/chat.png': backgroundPng('dark'),
   'assets/dark/sidebar.png': backgroundPng('dark'),
-  'assets/icons/light/send.png': iconPng('send', 'light'),
-  'assets/icons/light/new_session.png': iconPng('plus', 'light'),
-  'assets/icons/light/menu.png': iconPng('menu', 'light'),
-  'assets/icons/light/copy.png': iconPng('copy', 'light'),
-  'assets/icons/dark/send.png': iconPng('send', 'dark'),
-  'assets/icons/dark/new_session.png': iconPng('plus', 'dark'),
-  'assets/icons/dark/menu.png': iconPng('menu', 'dark'),
-  'assets/icons/dark/copy.png': iconPng('copy', 'dark'),
+}
+
+// 40 个图标 × 亮/暗：文件名与槽位一一对应，路径 assets/icons/<theme>/<slot>.png
+for (const slot of ICON_SLOTS) {
+  for (const theme of ['light', 'dark']) {
+    auroraFiles[`assets/icons/${theme}/${slot}.png`] = auroraGlyphPng(slot, theme)
+  }
 }
 
 /* ------------------------------ 验证用异常包 ------------------------------ */
@@ -1130,6 +1825,7 @@ const makePack = (id, name, mutate) => {
   pack.id = id
   pack.name = name
   pack.version = '1.0.0'
+  pack.description = '导入校验用异常样式包（用于验证配置错误码，不是示例包）'
   delete pack.cover
   delete pack.color_palette
   // 异常包仍用主题无关的旧 `{ file }` 形式（主题化 icon / cover 由 aurora 示例包演示）
@@ -1211,7 +1907,14 @@ export {
   auroraIconRgba,
   auroraCoverPng,
   auroraCoverRgba,
+  auroraGlyphPng,
+  auroraGlyphRgba,
   encodePng,
+  ICON_EXPORT,
+  ICON_SLOTS,
+  ICON_STROKE,
+  ICON_INK,
+  ICON_ACCENT_STOPS,
   AURORA_ICON_MASTER,
   AURORA_COVER_WIDTH,
 }

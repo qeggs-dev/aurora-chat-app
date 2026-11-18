@@ -10,6 +10,7 @@
 ## 名称与声明
 
 - 对外名称：**Aurora Chat**（`appName`、页面标题、窗口标题、Android 桌面名、桌面 exe 名）。
+- 维护者：**Qeggs**（GitHub: [qeggs-dev](https://github.com/qeggs-dev)）。
 - 包标识：`com.aurorachat.app`（中性命名，不使用 `deepseek` 作为组织名，避免暗示官方关系）。
 - 首次使用：启动后先弹「使用前请确认」，必须点「我已知悉，继续使用」才会继续；确认结果存在 `localStorage` 的 `chat-demo:disclaimer-accepted`，之后不再弹出。
 - 声明入口：`设置 → 关于` 随时可看非官方声明、上游仓库链接、官方在线体验（`https://cdn.deepseek.com/chat-demo`）、上游 MIT 许可全文、图标与第三方组件说明。
@@ -545,7 +546,7 @@ assets/font.woff2           # font.light / font.dark 的默认位置
 - 文本（许可证）：`txt` `md` `license`
 - `index.json` 的所有路径字段都可省略；默认位置查找同样只使用上面列出的扩展名（`cover` 的默认位置不含 `gif` / `avif`）
 - 单个 zip ≤ 20 MB，解压后 ≤ 60 MB，条目 ≤ 300；拒绝绝对路径与 `..`
-- 配套示例包（`aurora`）只含抽象背景与几何图标（渐变、极光带、光环、星点），**不含任何官方标志**；包图标与封面按亮/暗主题各给一张（浅色 / 深色版），其中给了 2–3 个图标静态特效、1 个图标 `window` + `zoom` + `tilt`，可作为视觉特效的参照；封面用于详情页整页背景、不带 `effects`。
+- 配套示例包（`aurora`）只含抽象背景与几何图标（渐变、极光带、光环、星点），**不含任何官方标志**；包图标与封面按亮/暗主题各给一张（浅色 / 深色版），40 个图标槽位在 1.2.3 起统一按同一规范绘制（无 per-icon effects，避免个别图标视觉重量不一致），静态特效 / `window` / `zoom` / `tilt` 的参照见 `bg-effects.zip` 与本章 effects 说明；封面用于详情页整页背景、不带 `effects`。
 
 ### 安全边界
 

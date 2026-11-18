@@ -1,6 +1,6 @@
 {
   "name": "aurora-chat",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "Aurora Chat 的 Android 壳（基于 chat-demo 的社区客户端）",
   "scripts": {

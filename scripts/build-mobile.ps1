@@ -14,6 +14,11 @@ try {
   pnpm install
   if (Test-Path "$root\mobile\www") { Remove-Item -Recurse -Force "$root\mobile\www" }
   Copy-Item -Recurse "$root\web\dist" "$root\mobile\www"
+  # 许可与声明随 APK 分发：应用 LICENSE、上游 LICENSE-UPSTREAM、NOTICE
+  New-Item -ItemType Directory -Force -Path "$root\mobile\www\licenses" | Out-Null
+  Copy-Item -Force "$root\LICENSE" "$root\mobile\www\licenses\LICENSE-APP.txt"
+  Copy-Item -Force "$root\LICENSE-UPSTREAM" "$root\mobile\www\licenses\LICENSE-UPSTREAM.txt"
+  Copy-Item -Force "$root\NOTICE.md" "$root\mobile\www\licenses\NOTICE.md"
   pnpm exec cap sync android
 } finally { Pop-Location }
 

@@ -8,7 +8,7 @@
 | 部分 | 来源 | 许可 | 随分发物附带 |
 | --- | --- | --- | --- |
 | 聊天界面 `web/`（及其产物 `dist/`） | https://github.com/deepseek-ai/chat-demo v0.1.1 | MIT（根目录 `LICENSE-UPSTREAM`，与 `web/LICENSE` 相同；构建时复制到 `dist/LICENSE`） | `LICENSE-UPSTREAM` → 桌面包内 `LICENSE.chat-demo.txt`；`dist/LICENSE` → 打进 asar / APK assets |
-| 本壳层代码 `desktop/`、`mobile/`、`scripts/` | 本仓库 | MIT（见本目录 `LICENSE`） | 与本 NOTICE 一起分发 |
+| 本壳层代码 `desktop/`、`mobile/`、`scripts/` | 本仓库（维护者 Qeggs / [qeggs-dev](https://github.com/qeggs-dev)） | MIT（见本目录 `LICENSE`） | 与本 NOTICE 一起分发 |
 | Electron 运行时 | https://www.electronjs.org | MIT | `LICENSE.electron.txt`（electron-builder 自动放入 `win-unpacked/`） |
 | Chromium 及第三方组件 | https://www.chromium.org | BSD-3-Clause 等 | `LICENSES.chromium.html`（同上） |
 | Capacitor（Android 壳） | https://capacitorjs.com | MIT | `mobile/android/` 内及 `node_modules` 元数据 |

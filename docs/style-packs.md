@@ -6,6 +6,24 @@
 
 > 列表与详情页的包图标、详情页 cover 都**跟随当前实际生效的主题**（含「跟随系统」解析后的结果）；清单里某个主题没提供图时，展示层回退到另一主题的图，两个主题都没有则显示首字母方块。
 
+### 就地编辑模式（应用内新建 / 编辑样式包）
+
+样式页头部除「导入样式包」外还有两个入口：**「编辑样式」**（以当前启用包为底稿，内置极光包会派生出一个新的自定义包 id）与**「新建样式包」**（空白草稿，自动生成 `custom-<timestamp36>` id）。点击后关闭设置弹窗，进入**就地编辑模式**：顶部出现工具栏（退出 / 保存 / 导出 zip / 收放面板），界面其余部分照常使用——普通点击、滚动、发送消息都不受影响。
+
+- **只拦截两类手势**：PC 端（桌面宿主：Windows / Linux / macOS）**右键**，其余所有移动 / 触屏宿主（Android / iOS / 任何触屏载体）**长按**。只对带 `data-style-slot` 标记的控件生效；未标记的元素行为完全不变。
+- **长按**：按住 ≥ 500 ms 弹出菜单；手指移动超过 10 px（滚动 / 拖拽）取消。若该控件注册了「原长按操作」，菜单里会出现「执行原长按操作（按住 XXX ms）」并传入松手时测得的实际时长；没有注册时隐藏该项。菜单固定包含「修改此控件样式」。
+- **右键**：在控件上右键会屏蔽浏览器原生菜单并弹出同样的自绘菜单（现有实现不依赖应用自带的右键菜单，保留后续在菜单中追加原菜单项的扩展点）。
+- **可编辑控件**：
+  - 10 个背景槽位：欢迎页 `background.main`、会话页 `background.chat`、输入框 `background.input_box`、侧边栏 `background.sidebar`、「开启新对话」`background.new_session`、普通 / 选中会话条目 `background.normal_session` / `background.selected_session`、设置页通用 / 数据 / 关于 `background.setting.generic` / `background.setting.datas` / `background.setting.about`（样式 / 预设 / 用量统计页回退到 `setting.generic`，所以也归到 generic 编辑）；
+  - 40 个图标槽位：每个 `PackIcon` 渲染的图标（无覆盖时显示内置 SVG，同样可以右键 / 长按替换）；
+  - 侧边栏标题（`sidebarTitle`）。
+- **修改面板**（侧面板）：按控件类型提供上传 / 替换 / 清除（恢复内置默认）、`fit` / `align` / `position` / `render` 与 `effects`（背景只提供 `window` / `zoom`；图标额外提供静态特效、`window` / `zoom` 与 `tilt`；包图标不允许 `tilt`，与导入校验的允许矩阵一致）。
+- **非元素级资源**放在侧面板：基本信息（id 只读、名称 / 作者 / 版本 / 描述 / 版权声明 / License 文本）、编辑主题（亮 / 暗）、字体、包图标与封面（亮 / 暗各一张）、配色（13 个语义色，可「从当前主题取色」）。
+- **实时预览**：编辑模式中的所有修改立即应用到界面（背景 / 字体 / 配色走 CSS 变量，图标与侧边栏标题走预览通道）；退出时未保存的修改会丢弃并恢复编辑前的样式。编辑期间界面主题被固定为具体亮 / 暗值，退出后恢复用户原来的主题偏好。
+- **保存**：校验通过后写 IndexedDB（`builtin: false`，编辑已有用户包时保留 `importedAt`），随后可在样式列表启用 / 删除；保存后继续留在编辑模式，可继续修改或导出。
+- **导出 zip**：与保存共用同一份草稿编译结果，资源 ID 仍为 `dslike_chat.style_pkg.*`、`schema` 为 1、LICENSE 文件内容为「版权声明 + 可选 License 全文」，文件名 `<id>.zip`；导出的包可被现有导入器重新解析（zip 大小上限 20 MB 等规则与导入一致）。
+- **校验**：id 格式、内置 id（`aurora`）不可覆盖、必填文本、文本安全字符、CSS 颜色、文件类型 / 单文件大小、`position` 白名单、`effects` 数值范围、至少一个资源、整包总量；错误按字段显示，文案中英成对。
+
 ### 内置极光样式包
 
 - **随安装包分发**：源文件 `tools/style-fixture/aurora.zip`（极光示例包，MIT LICENSE，manifest `id=aurora`，含亮/暗 icon+cover、抽象背景）。`scripts/build-web.ps1` 在构建前把它复制到 `web/src/assets/builtin/aurora.zip`，rspack 用 `.zip → asset/resource` 打进 `dist/static/media/`，桌面 asar 与 Android assets 都能 fetch 到该资产。

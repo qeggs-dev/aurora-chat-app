@@ -93,7 +93,7 @@ jobs:
           pnpm --dir desktop install --frozen-lockfile
           Remove-Item -Recurse -Force desktop/dist -ErrorAction SilentlyContinue
           Copy-Item -Recurse web/dist desktop/dist
-          pnpm --dir desktop exec electron-builder --win nsis zip --x64 --config electron-builder.yml --config.directories.output=${{ github.workspace }}/out/ci-win
+          pnpm --dir desktop exec electron-builder --win nsis zip --x64 --config electron-builder.yml --publish never --config.directories.output=${{ github.workspace }}/out/ci-win
         env:
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
       - uses: actions/upload-artifact@v4
@@ -135,6 +135,7 @@ jobs:
           cp LICENSE-UPSTREAM mobile/www/licenses/LICENSE-UPSTREAM.txt
           cp NOTICE.md mobile/www/licenses/NOTICE.md
           pnpm --dir mobile exec cap sync android
+          chmod +x mobile/android/gradlew
           cd mobile/android && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:

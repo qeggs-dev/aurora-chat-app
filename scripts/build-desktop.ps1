@@ -1,5 +1,8 @@
-# 并行打 Windows（NSIS 安装器 + 便携 zip）与 Linux（AppImage / deb / tar.gz）
-# 一次 electron-builder 调用产出同平台全部目标，Windows 与 Linux 两个进程并行，避免多次全量重打包。
+# 打桌面安装包。
+# - Windows 主机：只构建 Windows（NSIS 安装器 + 便携 zip），通常 2–3 分钟。
+# - Linux 主机：额外构建 Linux（AppImage / deb / tar.gz）。
+# Linux 包由 GitHub Actions 的 Ubuntu runner 生成（见 .github/workflows/release.yml），
+# 因为 Windows 上无法交叉构建 AppImage（mksquashfs）与 deb（fpm）。
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $desktop = "$root\desktop"
@@ -32,18 +35,27 @@ $winJob = Start-Job -ScriptBlock {
   pnpm exec electron-builder --win nsis zip --x64 --config electron-builder.yml --config.directories.output=$out 2>&1 | Out-String
 } -ArgumentList $desktop, $winOut
 
-$linuxJob = Start-Job -ScriptBlock {
-  param($desktop, $out)
-  $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
-  $env:ELECTRON_BUILDER_BINARIES_MIRROR = 'https://npmmirror.com/mirrors/electron-builder-binaries/'
-  Set-Location $desktop
-  pnpm exec electron-builder --linux AppImage deb tar.gz --x64 --config electron-builder.yml --config.directories.output=$out 2>&1 | Out-String
-} -ArgumentList $desktop, $linuxOut
+if ($IsLinux) {
+  $linuxJob = Start-Job -ScriptBlock {
+    param($desktop, $out)
+    $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
+    $env:ELECTRON_BUILDER_BINARIES_MIRROR = 'https://npmmirror.com/mirrors/electron-builder-binaries/'
+    Set-Location $desktop
+    pnpm exec electron-builder --linux AppImage deb tar.gz --x64 --config electron-builder.yml --config.directories.output=$out 2>&1 | Out-String
+  } -ArgumentList $desktop, $linuxOut
 
-Write-Output "parallel builds started: windows(nsis+zip) + linux(appimage+deb+tar.gz)"
-Wait-Job $winJob, $linuxJob | Out-Null
+  Write-Output "parallel builds started: windows(nsis+zip) + linux(appimage+deb+tar.gz)"
+} else {
+  Write-Output 'skip linux targets on this host (GitHub Actions builds AppImage/deb on Ubuntu)'
+}
 
-foreach ($job in @(@{ Name = 'windows'; Job = $winJob }, @{ Name = 'linux'; Job = $linuxJob })) {
+Wait-Job $winJob | Out-Null
+if ($IsLinux) { Wait-Job $linuxJob | Out-Null }
+
+
+$jobs = @(@{ Name = 'windows'; Job = $winJob })
+if ($IsLinux) { $jobs += @{ Name = 'linux'; Job = $linuxJob } }
+foreach ($job in $jobs) {
   $name = $job.Name
   $j = $job.Job
   $log = Receive-Job $j -Keep 2>&1 | Out-String
@@ -85,14 +97,16 @@ try {
   Write-Warning "无法刷新 out/desktop/win-unpacked（文件被占用），本次产物在 $winUnpacked"
 }
 
-# 校验并收集 Linux 产物
-$linuxFiles = Get-ChildItem $linuxOut -File -ErrorAction SilentlyContinue | Where-Object {
-  $_.Extension -in '.AppImage', '.deb', '.gz'
-}
-if (-not $linuxFiles) { throw "Linux 产物未生成（$linuxOut）" }
-foreach ($file in $linuxFiles) {
-  Copy-Item -Force $file.FullName "$root\out\$($file.Name)"
-  Write-Output "linux: $root\out\$($file.Name) ($([math]::Round($file.Length/1MB,1)) MB)"
+# 校验并收集 Linux 产物（仅 Linux 主机）
+if ($IsLinux) {
+  $linuxFiles = Get-ChildItem $linuxOut -File -ErrorAction SilentlyContinue | Where-Object {
+    $_.Extension -in '.AppImage', '.deb', '.gz'
+  }
+  if (-not $linuxFiles) { throw "Linux 产物未生成（$linuxOut）" }
+  foreach ($file in $linuxFiles) {
+    Copy-Item -Force $file.FullName "$root\out\$($file.Name)"
+    Write-Output "linux: $root\out\$($file.Name) ($([math]::Round($file.Length/1MB,1)) MB)"
+  }
 }
 
 $elapsed = [math]::Round(((Get-Date) - $startedAt).TotalSeconds, 1)

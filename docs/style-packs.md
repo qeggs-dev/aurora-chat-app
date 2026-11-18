@@ -17,7 +17,7 @@
   - 10 个背景槽位：欢迎页 `background.main`、会话页 `background.chat`、输入框 `background.input_box`、侧边栏 `background.sidebar`、「开启新对话」`background.new_session`、普通 / 选中会话条目 `background.normal_session` / `background.selected_session`、设置页通用 / 数据 / 关于 `background.setting.generic` / `background.setting.datas` / `background.setting.about`（样式 / 预设 / 用量统计页回退到 `setting.generic`，所以也归到 generic 编辑）；
   - 40 个图标槽位：每个 `PackIcon` 渲染的图标（无覆盖时显示内置 SVG，同样可以右键 / 长按替换）；
   - 侧边栏标题（`sidebarTitle`）。
-- **修改面板**（侧面板）：按控件类型提供上传 / 替换 / 清除（恢复内置默认）、`fit` / `align` / `position` / `render` 与 `effects`（背景只提供 `window` / `zoom`；图标额外提供静态特效、`window` / `zoom` 与 `tilt`；包图标不允许 `tilt`，与导入校验的允许矩阵一致）。
+- **修改面板**（侧面板）：标题栏是拖动手柄（pointer events，鼠标 / 触摸通用，触屏上 `touch-action: none`），拖动时面板整体限制在视口内并留 8 px 边距，面板高于视口时保证标题栏仍可抓取；松手保持位置，进入 / 退出编辑模式重置为默认位置（PC 右侧、移动端底部）。按控件类型提供上传 / 替换 / 清除（恢复内置默认）、`fit` / `align` / `position` / `render` 与 `effects`（背景只提供 `window` / `zoom`；图标额外提供静态特效、`window` / `zoom` 与 `tilt`；包图标不允许 `tilt`，与导入校验的允许矩阵一致）。
 - **非元素级资源**放在侧面板：基本信息（id 只读、名称 / 作者 / 版本 / 描述 / 版权声明 / License 文本）、编辑主题（亮 / 暗）、字体、包图标与封面（亮 / 暗各一张）、配色（13 个语义色，可「从当前主题取色」）。
 - **实时预览**：编辑模式中的所有修改立即应用到界面（背景 / 字体 / 配色走 CSS 变量，图标与侧边栏标题走预览通道）；退出时未保存的修改会丢弃并恢复编辑前的样式。编辑期间界面主题被固定为具体亮 / 暗值，退出后恢复用户原来的主题偏好。
 - **保存**：校验通过后写 IndexedDB（`builtin: false`，编辑已有用户包时保留 `importedAt`），随后可在样式列表启用 / 删除；保存后继续留在编辑模式，可继续修改或导出。

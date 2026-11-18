@@ -8,10 +8,11 @@ Write-Output '=== web ==='
 if ($LASTEXITCODE -ne 0) { throw 'build-web failed' }
 
 $desktopJob = Start-Job -ScriptBlock {
-  param($script, $arg)
-  if ($arg) { & $script $arg } else { & $script }
+  param($script)
+  # 命名开关必须直接写在调用里，字符串参数不会绑定到 switch
+  & $script -ParallelTargets
   exit $LASTEXITCODE
-} -ArgumentList "$root\scripts\build-desktop.ps1", '-ParallelTargets'
+} -ArgumentList "$root\scripts\build-desktop.ps1"
 
 $mobileJob = Start-Job -ScriptBlock {
   param($script)

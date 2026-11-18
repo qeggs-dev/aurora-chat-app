@@ -32,8 +32,10 @@ $variant = if ($Release) { 'release' } else { 'debug' }
 $apk = Get-ChildItem "$android\app\build\outputs\apk\$variant" -Filter *.apk | Select-Object -First 1
 if (-not $apk) { throw "未找到 APK（$variant）" }
 New-Item -ItemType Directory -Force -Path "$root\out\mobile" | Out-Null
-Copy-Item -Force $apk.FullName "$root\out\mobile\aurora-chat-$variant.apk"
-Write-Output "apk: $root\out\mobile\aurora-chat-$variant.apk ($([math]::Round($apk.Length/1MB,1)) MB)"
+$version = (Get-Content "$root\mobile\package.json" -Raw | ConvertFrom-Json).version
+$artifact = if ($Release) { "aurora-chat-$version-release.apk" } else { 'aurora-chat-debug.apk' }
+Copy-Item -Force $apk.FullName "$root\out\mobile\$artifact"
+Write-Output "apk: $root\out\mobile\$artifact ($([math]::Round($apk.Length/1MB,1)) MB)"
 
 
 

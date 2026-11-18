@@ -18,6 +18,23 @@
 | Linux | urora-chat-<版本>-linux-x86_64.AppImage / .deb / .tar.gz | AppImage 免安装；deb 适用于 Debian/Ubuntu；tar.gz 为便携版 |
 | Android | urora-chat-debug.apk | debug 签名的测试包，允许「未知来源安装」即可安装 |
 
+### 本地 release 签名（Android）
+
+release APK 用本机 keystore 签名，keystore 与密码只保存在本地、**不进入仓库**（.gitignore 已忽略 mobile/android/keystore/、mobile/android/keystore.properties、*.jks）：
+
+```
+mobile/android/keystore/aurora-release.jks     # 自签名密钥，请自行备份
+mobile/android/keystore.properties             # storePassword / keyAlias / keyPassword
+```
+
+构建：
+
+```powershell
+.\scripts\build-mobile.ps1 -Release
+# 产物：out\mobile\aurora-chat-<版本>-release.apk
+```
+
+注意：release APK 与 debug APK 签名不同，手机上从 debug 换装 release 需要先卸载（会清数据）；发布给他人安装则直接装 release 包即可。keystore 一旦丢失，未来版本无法覆盖安装已发布的 release 包，务必备份。
 本地也随时可以构建：scripts\build-all.ps1 一次产出 Windows（安装器 + 便携 zip）与 Android APK；Linux 包由 CI 的 Ubuntu runner 生成。
 ## 名称与声明
 

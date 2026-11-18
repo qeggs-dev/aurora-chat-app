@@ -7,6 +7,18 @@
 - `web/` —— 上游源码副本（含 `LICENSE`），构建产物 `dist/` 会分发给两层壳。
 - `scripts/` —— 一键构建脚本；`out/` —— 分发物。
 
+## 下载
+
+三平台安装包发布在 [Releases](https://github.com/qeggs-dev/aurora-chat-app/releases)（由 GitHub Actions 构建）：
+
+| 平台 | 文件 | 说明 |
+|---|---|---|
+| Windows | urora-chat-<版本>-win-x64.exe | NSIS 安装器（可选择安装目录、创建快捷方式） |
+| Windows | urora-chat-<版本>-win-x64.zip | 免安装便携版，解压后运行 Aurora Chat.exe |
+| Linux | urora-chat-<版本>-linux-x86_64.AppImage / .deb / .tar.gz | AppImage 免安装；deb 适用于 Debian/Ubuntu；tar.gz 为便携版 |
+| Android | urora-chat-debug.apk | debug 签名的测试包，允许「未知来源安装」即可安装 |
+
+本地也随时可以构建：scripts\build-all.ps1 一次产出 Windows（安装器 + 便携 zip）与 Android APK；Linux 包由 CI 的 Ubuntu runner 生成。
 ## 名称与声明
 
 - 对外名称：**Aurora Chat**（`appName`、页面标题、窗口标题、Android 桌面名、桌面 exe 名）。

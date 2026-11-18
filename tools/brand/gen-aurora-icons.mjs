@@ -78,6 +78,9 @@ const encodePng = (width, height, rgba) => {
 /* ------------------------------ 几何与配色 ------------------------------ */
 
 const MASTER = 1024 // 母版设计空间：1024×1024，满幅圆角方块
+
+// 打包壳图标（桌面 exe / Android 启动器）使用亮色版本；启动图仍保持深底。
+const PACKAGING_THEME = 'light'
 const CORNER_RATIO = 0.225 // 圆角率，与旧桌面图标一致（rx = 230）
 const CORNER_RADIUS = MASTER * CORNER_RATIO
 
@@ -462,12 +465,13 @@ const renderPlaque = (size, { theme = 'dark', shape = 'rounded', insetRatio = 1 
 }
 
 /** 自适应图标前景：透明底 + 极光主体，主体宽 = 62% 画布，居中留安全边距 */
-const renderForeground = (size) => {
+const renderForeground = (size, theme = 'dark') => {
   const targetWidth = 0.62 * size
   const scale = targetWidth / (MARK_BOX.x1 - MARK_BOX.x0)
   const offsetX = size / 2 - ((MARK_BOX.x0 + MARK_BOX.x1) / 2) * scale
   const offsetY = size / 2 - ((MARK_BOX.y0 + MARK_BOX.y1) / 2) * scale
-  const columns = precomputeColumns(size, scale, offsetX, 'dark')
+  const columns = precomputeColumns(size, scale, offsetX, theme)
+  const light = theme === 'light'
   const rgba = Buffer.alloc(size * size * 4)
   for (let py = 0; py < size; py += 1) {
     const my = (py + 0.5 - offsetY) / scale
@@ -487,8 +491,12 @@ const renderForeground = (size) => {
         const cg = band.cg[px]
         const cb = band.cb[px]
         // 亮边偏白、中层本色、外晕偏冷暗，alpha 按三层能量累加
-        const edgeRgb = mixRgb([cr, cg, cb], [236, 248, 255], 0.55)
-        const haloRgb = mixRgb([cr, cg, cb], [24, 44, 92], 0.25)
+        const edgeRgb = light
+          ? mixRgb([cr, cg, cb], [255, 255, 255], 0.35)
+          : mixRgb([cr, cg, cb], [236, 248, 255], 0.55)
+        const haloRgb = light
+          ? mixRgb([cr, cg, cb], [236, 243, 255], 0.3)
+          : mixRgb([cr, cg, cb], [24, 44, 92], 0.25)
         accA += terms.edge * 1.0 + terms.mid * 0.65 + terms.halo * 0.32
         accR += edgeRgb[0] * terms.edge + cr * terms.mid + haloRgb[0] * terms.halo
         accG += edgeRgb[1] * terms.edge + cg * terms.mid + haloRgb[1] * terms.halo
@@ -755,7 +763,10 @@ writePng(join(BRAND_DIR, 'aurora-1024.png'), 1024, 1024, renderPlaque(1024))
 writePng(join(BRAND_DIR, 'aurora-512.png'), 512, 512, renderPlaque(512))
 writePng(join(BRAND_DIR, 'aurora-192.png'), 192, 192, renderPlaque(192))
 writePng(join(BRAND_DIR, 'aurora-48.png'), 48, 48, renderPlaque(48))
+writePng(join(BRAND_DIR, 'aurora-light-1024.png'), 1024, 1024, renderPlaque(1024, { theme: 'light' }))
 writePng(join(BRAND_DIR, 'aurora-light-512.png'), 512, 512, renderPlaque(512, { theme: 'light' }))
+writePng(join(BRAND_DIR, 'aurora-light-192.png'), 192, 192, renderPlaque(192, { theme: 'light' }))
+writePng(join(BRAND_DIR, 'aurora-light-48.png'), 48, 48, renderPlaque(48, { theme: 'light' }))
 writeText(join(BRAND_DIR, 'aurora-mark.svg'), markSvg())
 writeText(join(BRAND_DIR, 'aurora-mark-foreground.svg'), markForegroundSvg())
 writeText(join(BRAND_DIR, 'aurora-mark-light.svg'), markLightSvg())
@@ -764,7 +775,7 @@ writeText(join(BRAND_DIR, 'aurora-lockup.svg'), lockupSvg())
 /* ---------- desktop/build/icon.png：electron-builder 的 win.icon ---------- */
 
 ensureDir(join(DESKTOP_BUILD, 'icon.png'))
-writePng(join(DESKTOP_BUILD, 'icon.png'), 1024, 1024, renderPlaque(1024))
+writePng(join(DESKTOP_BUILD, 'icon.png'), 1024, 1024, renderPlaque(1024, { theme: PACKAGING_THEME }))
 
 /* ---------- Android 传统图标 + 自适应前景 ---------- */
 
@@ -778,16 +789,26 @@ const DENSITIES = [
 for (const [dpi, legacySize, foregroundSize] of DENSITIES) {
   const legacyDir = join(ANDROID_RES, `mipmap-${dpi}`)
   ensureDir(join(legacyDir, 'ic_launcher.png'))
-  // 传统图标：主体（圆角方块）占 76%，四周透明；round 版用同样 76% 的圆形主体
-  writePng(join(legacyDir, 'ic_launcher.png'), legacySize, legacySize, renderPlaque(legacySize, { insetRatio: 0.76 }))
+  // 传统图标：主体（圆角方块）占 76%，四周透明；round 版用同样 76% 的圆形主体；打包壳用亮色
+  writePng(
+    join(legacyDir, 'ic_launcher.png'),
+    legacySize,
+    legacySize,
+    renderPlaque(legacySize, { theme: PACKAGING_THEME, insetRatio: 0.76 })
+  )
   writePng(
     join(legacyDir, 'ic_launcher_round.png'),
     legacySize,
     legacySize,
-    renderPlaque(legacySize, { shape: 'circle', insetRatio: 0.76 })
+    renderPlaque(legacySize, { shape: 'circle', theme: PACKAGING_THEME, insetRatio: 0.76 })
   )
-  // 自适应图标前景：透明底，主体 62%（108dp 画布中间 66dp 安全区内）
-  writePng(join(legacyDir, 'ic_launcher_foreground.png'), foregroundSize, foregroundSize, renderForeground(foregroundSize))
+  // 自适应图标前景：透明底，主体 62%（108dp 画布中间 66dp 安全区内）；打包壳用亮色
+  writePng(
+    join(legacyDir, 'ic_launcher_foreground.png'),
+    foregroundSize,
+    foregroundSize,
+    renderForeground(foregroundSize, PACKAGING_THEME)
+  )
 }
 
 /* ---------- Android 启动图：沿用现有各密度尺寸，深蓝底 + 26% 居中极光 ---------- */
@@ -797,19 +818,25 @@ const SPLASH_TARGETS = [
   ['drawable-port-mdpi/splash.png', 320, 480],
   ['drawable-port-hdpi/splash.png', 480, 800],
   ['drawable-port-xhdpi/splash.png', 720, 1280],
-  ['drawable-port-xxhdpi/splash.png', 960, 1600],
-  ['drawable-port-xxxhdpi/splash.png', 1280, 1920],
+  ['drawable-port-xxhdpi/splash.png', 1080, 1920],
+  ['drawable-port-xxxhdpi/splash.png', 1440, 2560],
   ['drawable-land-mdpi/splash.png', 480, 320],
   ['drawable-land-hdpi/splash.png', 800, 480],
   ['drawable-land-xhdpi/splash.png', 1280, 720],
-  ['drawable-land-xxhdpi/splash.png', 1600, 960],
-  ['drawable-land-xxxhdpi/splash.png', 1920, 1280],
+  ['drawable-land-xxhdpi/splash.png', 1920, 1080],
+  ['drawable-land-xxxhdpi/splash.png', 2560, 1440],
 ]
 for (const [relative, width, height] of SPLASH_TARGETS) {
   const target = join(ANDROID_RES, relative)
   ensureDir(target)
   writePng(target, width, height, renderSplash(width, height))
 }
+
+/* ---------- Android 12+ 启动屏图标：高分辨率 nodpi PNG（避免栅格前景被放大发糊或被矢量裁切） ---------- */
+
+const SPLASH_ICON = join(ANDROID_RES, 'drawable-nodpi', 'splash_icon.png')
+ensureDir(SPLASH_ICON)
+writePng(SPLASH_ICON, 1152, 1152, renderForeground(1152, 'dark'))
 
 /* ---------- Android 纯矢量资源（保持资源 ID 不变，仅换内容） ---------- */
 

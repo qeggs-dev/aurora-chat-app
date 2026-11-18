@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 启动屏背景（深色） -->
     <color name="ic_launcher_background">#061029</color>
+    <!-- 打包壳图标（亮色）的自适应图标背景 -->
+    <color name="ic_launcher_background_light">#EEF4FF</color>
 </resources>

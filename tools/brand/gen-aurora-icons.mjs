@@ -514,28 +514,48 @@ const renderForeground = (size, theme = 'dark') => {
   return rgba
 }
 
-/** 启动屏：深蓝底 + 居中极光主体（主体宽 = 26% 短边）+ 中央柔和光晕 */
-const renderSplash = (width, height) => {
+/** 启动屏：亮色渐变底 + 居中极光主体（主体宽 = 26% 短边）+ 柔和光晕 */
+const renderSplash = (width, height, theme = 'dark') => {
   const minDim = Math.min(width, height)
   const scale = (0.26 * minDim) / (MARK_BOX.x1 - MARK_BOX.x0)
   const offsetX = width / 2 - ((MARK_BOX.x0 + MARK_BOX.x1) / 2) * scale
   const offsetY = height / 2 - ((MARK_BOX.y0 + MARK_BOX.y1) / 2) * scale
-  const columns = precomputeColumns(width, scale, offsetX, 'dark')
+  const light = theme === 'light'
+  const columns = precomputeColumns(width, scale, offsetX, theme)
   const rgba = Buffer.alloc(width * height * 4)
   for (let py = 0; py < height; py += 1) {
     const my = (py + 0.5 - offsetY) / scale
     const dy = (py + 0.5 - height / 2) / (height * 0.24)
+    const v = (py + 0.5) / height
     for (let px = 0; px < width; px += 1) {
       const mx = (px + 0.5 - offsetX) / scale
-      let r = SPLASH_BG[0]
-      let g = SPLASH_BG[1]
-      let b = SPLASH_BG[2]
-      // 中央偏上的柔和氛围光，边缘严格保持 #061029
-      const dx = (px + 0.5 - width / 2) / (width * 0.32)
-      const glow = clamp01(1 - Math.hypot(dx, dy)) ** 3 * 0.1
-      r += 62 * glow
-      g += 120 * glow
-      b += 210 * glow
+      const u = (px + 0.5) / width
+      let r
+      let g
+      let b
+      if (light) {
+        const base = rampRgb(BG_LIGHT, clamp01(0.08 + 0.92 * (1 - v)))
+        r = base[0]
+        g = base[1]
+        b = base[2]
+        for (const [cx, cy, radius, color, energy] of BG_GLOWS_LIGHT) {
+          const falloff = clamp01(1 - Math.hypot(u - cx, v - cy) / radius)
+          const amount = falloff ** 3 * energy * 0.6
+          r = over(r, color[0], amount)
+          g = over(g, color[1], amount)
+          b = over(b, color[2], amount)
+        }
+      } else {
+        r = SPLASH_BG[0]
+        g = SPLASH_BG[1]
+        b = SPLASH_BG[2]
+        // 中央偏上的柔和氛围光，边缘严格保持 #061029
+        const dx = (px + 0.5 - width / 2) / (width * 0.32)
+        const glow = clamp01(1 - Math.hypot(dx, dy)) ** 3 * 0.1
+        r += 62 * glow
+        g += 120 * glow
+        b += 210 * glow
+      }
       for (const band of columns) {
         const strength = band.strength[px]
         if (strength <= 0) continue
@@ -545,7 +565,23 @@ const renderSplash = (width, height) => {
         const cr = band.cr[px]
         const cg = band.cg[px]
         const cb = band.cb[px]
-        r += (cr * 0.7 + 96) * terms.edge + cr * terms.mid + cr * terms.halo
+        if (light) {
+          const haloRgb = mixRgb([cr, cg, cb], [255, 255, 255], 0.72)
+          const midRgb = mixRgb([cr, cg, cb], [255, 255, 255], 0.38)
+          r = over(r, haloRgb[0], terms.halo * 0.85)
+          g = over(g, haloRgb[1], terms.halo * 0.85)
+          b = over(b, haloRgb[2], terms.halo * 0.85)
+          r = over(r, midRgb[0], terms.mid * 0.9)
+          g = over(g, midRgb[1], terms.mid * 0.9)
+          b = over(b, midRgb[2], terms.mid * 0.9)
+          r = over(r, cr, terms.edge * 0.92)
+          g = over(g, cg, terms.edge * 0.92)
+          b = over(b, cb, terms.edge * 0.92)
+        } else {
+          r += (cr * 0.7 + 96) * terms.edge + cr * terms.mid + cr * terms.halo
+          g += (cg * 0.7 + 102) * terms.edge + cg * terms.mid + cg * terms.halo
+          b += (cb * 0.7 + 110) * terms.edge + cb * terms.mid + cb * terms.halo
+        }
         g += (cg * 0.7 + 102) * terms.edge + cg * terms.mid + cg * terms.halo
         b += (cb * 0.7 + 110) * terms.edge + cb * terms.mid + cb * terms.halo
       }
@@ -829,14 +865,14 @@ const SPLASH_TARGETS = [
 for (const [relative, width, height] of SPLASH_TARGETS) {
   const target = join(ANDROID_RES, relative)
   ensureDir(target)
-  writePng(target, width, height, renderSplash(width, height))
+  writePng(target, width, height, renderSplash(width, height, 'light'))
 }
 
 /* ---------- Android 12+ 启动屏图标：高分辨率 nodpi PNG（避免栅格前景被放大发糊或被矢量裁切） ---------- */
 
 const SPLASH_ICON = join(ANDROID_RES, 'drawable-nodpi', 'splash_icon.png')
 ensureDir(SPLASH_ICON)
-writePng(SPLASH_ICON, 1152, 1152, renderForeground(1152, 'dark'))
+writePng(SPLASH_ICON, 1152, 1152, renderForeground(1152, 'light'))
 
 /* ---------- Android 纯矢量资源（保持资源 ID 不变，仅换内容） ---------- */
 

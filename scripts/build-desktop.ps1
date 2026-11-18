@@ -4,6 +4,10 @@
 # Linux 包由 GitHub Actions 的 Ubuntu runner 生成（见 .github/workflows/release.yml），
 # 因为 Windows 上无法交叉构建 AppImage（mksquashfs）与 deb（fpm）。
 #
+# 注意：桌面壳复用 web/dist 的构建产物，请先执行 scripts/build-web.ps1（默认 -Channel release）。
+# 桌面端「检查更新」固定按 OS 选安装器，渠道只影响 Android APK 选择，所以 debug 渠道的
+# web 产物也能跑桌面，但正式打包前应重新构建 release 渠道。
+#
 # -ParallelTargets：把 NSIS 与 zip 拆成两个 electron-builder 进程并行执行
 # （electron-builder 单个进程内的多个 target 基本是串行压缩；本机 20 核时拆开更快，
 # 代价是各自铺一份 ~300MB 的 win-unpacked，磁盘与内存占用翻倍）。

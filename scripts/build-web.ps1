@@ -1,6 +1,13 @@
-# 构建聊天界面（web 副本），并把产物分发给两层壳
+# 构建聊天界面（web 副本），并把产物分发给两层壳。
+# -Channel：注入 __APP_CHANNEL__（dev / debug / release），Android 用它选同签名 APK；
+# 桌面端固定使用 release 渠道的资产（渠道只影响 Android），因此默认 release。
+param(
+  [ValidateSet('dev', 'debug', 'release')]
+  [string]$Channel = 'release'
+)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$env:APP_CHANNEL = $Channel
 
 Push-Location "$root\web"
 try {
@@ -10,7 +17,7 @@ try {
   $builtinDir = Join-Path $PWD 'src\assets\builtin'
   New-Item -ItemType Directory -Force -Path $builtinDir | Out-Null
   Copy-Item -Force (Join-Path $root 'tools\style-fixture\aurora.zip') (Join-Path $builtinDir 'aurora.zip')
-  Write-Output "builtin style pack -> web\src\assets\builtin\aurora.zip"
+  Write-Output "builtin style pack -> web\src\assets\builtin\aurora.zip (channel: $Channel)"
   $env:NODE_ENV = 'production'
   pnpm exec rspack build -c rspack.config.ts
 } finally { Pop-Location }

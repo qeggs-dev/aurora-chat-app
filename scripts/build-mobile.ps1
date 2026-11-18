@@ -4,6 +4,12 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $android = "$root\mobile\android"
 
+# 渠道：默认 debug（本地调试签名），-Release 时 release。
+# debug 安装的包只能被同签名 debug 包覆盖，所以 web 构建里注入 __APP_CHANNEL__ 让「检查更新」
+# 选对 -debug.apk / -release.apk；原生插件另用 BuildConfig.DEBUG 兜底（CI 的 APK 是 debug 签名）。
+$channel = if ($Release) { 'release' } else { 'debug' }
+& "$PSScriptRoot\build-web.ps1" -Channel $channel
+
 $jdk21 = 'D:\Apps\jdk-21.0.8'
 $env:JAVA_HOME = if (Test-Path $jdk21) { $jdk21 } elseif ($env:JAVA_HOME) { $env:JAVA_HOME } else { throw '需要 JDK 21（Capacitor 8 使用 Java 21 源码）' }
 $env:ANDROID_HOME = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:LOCALAPPDATA\Android\Sdk" }
@@ -31,6 +37,7 @@ try {
     $task = if ($Release) { 'assembleRelease' } else { 'assembleDebug' }
     .\gradlew.bat $task --no-daemon --console=plain
   }
+  if ($LASTEXITCODE -ne 0) { throw "gradle 构建失败（exit $LASTEXITCODE）" }
 } finally { Pop-Location }
 
 New-Item -ItemType Directory -Force -Path "$root\out\mobile" | Out-Null

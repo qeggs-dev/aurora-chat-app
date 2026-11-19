@@ -1,6 +1,6 @@
 {
   "name": "aurora-chat-desktop",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "description": "Aurora Chat 的 Electron 桌面壳（基于 chat-demo 的社区客户端）",
   "main": "main.js",
